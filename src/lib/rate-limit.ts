@@ -19,10 +19,15 @@ export function rateLimit(ip: string, config: RateLimitConfig): RateLimitResult 
   const windowStart = now - config.windowMs;
 
   const timestamps = (store.get(ip) ?? []).filter((t) => t > windowStart);
-  timestamps.push(now);
-  store.set(ip, timestamps);
-
-  const allowed = timestamps.length <= config.max;
+  const allowed = timestamps.length < config.max;
+  if (allowed) {
+    timestamps.push(now);
+  }
+  if (timestamps.length > 0) {
+    store.set(ip, timestamps);
+  } else {
+    store.delete(ip);
+  }
   const remaining = Math.max(0, config.max - timestamps.length);
   return { allowed, remaining };
 }
