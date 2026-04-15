@@ -1,0 +1,231 @@
+@import "tailwindcss";
+/* @import "tw-animate-css"; */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  --radius: 0.65rem;
+}
+
+/* ─── Dark Theme (Obsidian + Cream) ─── */
+[data-theme="dark"] {
+  --background: #0c0b09;
+  --foreground: #f5efe6;
+  --card: #161410;
+  --card-foreground: #f5efe6;
+  --popover: #161410;
+  --popover-foreground: #f5efe6;
+  --primary: #e8d9c0;
+  --primary-foreground: #0c0b09;
+  --secondary: #1e1b16;
+  --secondary-foreground: #d4c4a8;
+  --muted: #1e1b16;
+  --muted-foreground: rgba(235, 220, 190, 0.38);
+  --accent: #e8d9c0;
+  --accent-foreground: #0c0b09;
+  --destructive: #ef4444;
+  --destructive-foreground: #f5efe6;
+  --border: rgba(235, 220, 190, 0.12);
+  --input: #1e1b16;
+  --ring: #e8d9c0;
+  --chart-1: #e8d9c0;
+  --chart-2: #c9b99a;
+  --chart-3: #a89878;
+  --chart-4: #8a7a60;
+  --chart-5: #6b5c48;
+  --sidebar: #100f0c;
+  --sidebar-foreground: #f5efe6;
+  --sidebar-primary: #e8d9c0;
+  --sidebar-primary-foreground: #0c0b09;
+  --sidebar-accent: #1e1b16;
+  --sidebar-accent-foreground: #f5efe6;
+  --sidebar-border: rgba(235, 220, 190, 0.12);
+  --sidebar-ring: #e8d9c0;
+}
+
+/* ─── Light Theme (Parchment + Warm Brown) ─── */
+[data-theme="light"] {
+  --background: #faf8f5;
+  --foreground: #1a1510;
+  --card: #ffffff;
+  --card-foreground: #1a1510;
+  --popover: #ffffff;
+  --popover-foreground: #1a1510;
+  --primary: #8a7560;
+  --primary-foreground: #faf8f5;
+  --secondary: #f0ebe4;
+  --secondary-foreground: #5a4a38;
+  --muted: #f0ebe4;
+  --muted-foreground: #8a7a60;
+  --accent: #8a7560;
+  --accent-foreground: #faf8f5;
+  --destructive: #dc2626;
+  --destructive-foreground: #faf8f5;
+  --border: rgba(180, 160, 130, 0.2);
+  --input: #f0ebe4;
+  --ring: #8a7560;
+  --chart-1: #8a7560;
+  --chart-2: #a89878;
+  --chart-3: #b5a080;
+  --chart-4: #c9b99a;
+  --chart-5: #d4c4a8;
+  --sidebar: #f5f2ed;
+  --sidebar-foreground: #1a1510;
+  --sidebar-primary: #8a7560;
+  --sidebar-primary-foreground: #faf8f5;
+  --sidebar-accent: #f0ebe4;
+  --sidebar-accent-foreground: #1a1510;
+  --sidebar-border: rgba(180, 160, 130, 0.2);
+  --sidebar-ring: #8a7560;
+}
+
+/* Highlight text serif styling */
+.highlight-text {
+  font-family: "Lora", ui-serif, Georgia, serif;
+  font-style: italic;
+  line-height: 1.75;
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, oklch(0.72 0.18 280), oklch(0.75 0.18 340));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: oklch(0.3 0.015 260); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: oklch(0.4 0.015 260); }
+
+/* Sexy UI elements */
+.noise-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+.magnetic-btn {
+  transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), background 0.2s ease, opacity 0.2s ease;
+  overflow: hidden;
+  position: relative;
+}
+.magnetic-btn:hover {
+  transform: scale(1.03);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    @apply cursor-pointer;
+  }
+}
+
+@layer components {
+  /**
+   * Custom container utility that centers content and adds responsive padding.
+   *
+   * This overrides Tailwind's default container behavior to:
+   * - Auto-center content (mx-auto)
+   * - Add responsive horizontal padding
+   * - Set max-width for large screens
+   *
+   * Usage: <div className="container">...</div>
+   *
+   * For custom widths, use max-w-* utilities directly:
+   * <div className="max-w-6xl mx-auto px-4">...</div>
+   */
+  .container {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem; /* 16px - mobile padding */
+    padding-right: 1rem;
+  }
+
+  .flex {
+    min-height: 0;
+    min-width: 0;
+  }
+
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 1.5rem; /* 24px - tablet padding */
+      padding-right: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container {
+      padding-left: 2rem; /* 32px - desktop padding */
+      padding-right: 2rem;
+      max-width: 1280px; /* Standard content width */
+    }
+  }
+}
