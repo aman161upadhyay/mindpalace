@@ -8,43 +8,53 @@ import { applyCors } from "../../src/lib/cors";
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (applyCors(req, res)) return;
 
-  const userId = await getAuthUserIdFromVercelReq(req);
-  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  try {
+    const userId = await getAuthUserIdFromVercelReq(req);
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
-  const id = Number(req.query.id);
-  if (!id || isNaN(id)) return res.status(400).json({ error: "Invalid highlight ID" });
+    const id = Number(req.query.id);
+    if (!id || isNaN(id)) return res.status(400).json({ error: "Invalid highlight ID" });
 
-  if (req.method === "PATCH") {
-    const { notes, tagIds } = req.body ?? {};
-    const updateData: Record<string, unknown> = { updatedAt: new Date() };
-    if (notes !== undefined) updateData.notes = notes;
-    if (tagIds !== undefined) {
-      if (!Array.isArray(tagIds)) return res.status(400).json({ error: "tagIds must be an array" });
-      updateData.tagIds = JSON.stringify(tagIds);
+    if (req.method === "PATCH") {
+      const { notes, tagIds } = req.body ?? {};
+      if (notes !== undefined && (typeof notes !== "string" || notes.length > 100000)) {
+        return res.status(400).json({ error: "Notes must be a string of 100,000 characters or fewer" });
+      }
+      const updateData: Record<string, unknown> = { updatedAt: new Date() };
+      if (notes !== undefined) updateData.notes = notes;
+      if (tagIds !== undefined) {
+        if (!Array.isArray(tagIds) || !tagIds.every((t) => typeof t === "number" && Number.isInteger(t) && t > 0)) {
+          return res.status(400).json({ error: "tagIds must be an array of positive integers" });
+        }
+        updateData.tagIds = JSON.stringify(tagIds);
+      }
+
+      const existing = await db
+        .select({ id: highlights.id })
+        .from(highlights)
+        .where(and(eq(highlights.id, id), eq(highlights.userId, userId)))
+        .limit(1);
+      if (existing.length === 0) return res.status(404).json({ error: "Highlight not found" });
+
+      await db.update(highlights).set(updateData).where(and(eq(highlights.id, id), eq(highlights.userId, userId)));
+      const updated = await db.select().from(highlights).where(eq(highlights.id, id)).limit(1);
+      return res.status(200).json(updated[0]);
     }
 
-    const existing = await db
-      .select({ id: highlights.id })
-      .from(highlights)
-      .where(and(eq(highlights.id, id), eq(highlights.userId, userId)))
-      .limit(1);
-    if (existing.length === 0) return res.status(404).json({ error: "Highlight not found" });
+    if (req.method === "DELETE") {
+      const existing = await db
+        .select({ id: highlights.id })
+        .from(highlights)
+        .where(and(eq(highlights.id, id), eq(highlights.userId, userId)))
+        .limit(1);
+      if (existing.length === 0) return res.status(404).json({ error: "Highlight not found" });
+      await db.delete(highlights).where(and(eq(highlights.id, id), eq(highlights.userId, userId)));
+      return res.status(200).json({ success: true });
+    }
 
-    await db.update(highlights).set(updateData).where(and(eq(highlights.id, id), eq(highlights.userId, userId)));
-    const updated = await db.select().from(highlights).where(eq(highlights.id, id)).limit(1);
-    return res.status(200).json(updated[0]);
+    return res.status(405).json({ error: "Method not allowed" });
+  } catch (err: unknown) {
+    console.error("[highlights/id] Error:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
-
-  if (req.method === "DELETE") {
-    const existing = await db
-      .select({ id: highlights.id })
-      .from(highlights)
-      .where(and(eq(highlights.id, id), eq(highlights.userId, userId)))
-      .limit(1);
-    if (existing.length === 0) return res.status(404).json({ error: "Highlight not found" });
-    await db.delete(highlights).where(and(eq(highlights.id, id), eq(highlights.userId, userId)));
-    return res.status(200).json({ success: true });
-  }
-
-  return res.status(405).json({ error: "Method not allowed" });
 }

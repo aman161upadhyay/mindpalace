@@ -62,6 +62,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       apiToken: tokenValue,
     });
   } catch (err: unknown) {
+    // Handle unique constraint violations (race condition between check and insert)
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (errMsg.includes("unique") || errMsg.includes("duplicate") || errMsg.includes("23505")) {
+      return res.status(409).json({ error: "Username or email already taken" });
+    }
     console.error("[register] Error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
