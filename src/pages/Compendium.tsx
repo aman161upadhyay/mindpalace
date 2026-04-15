@@ -25,6 +25,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
+// ─── Safe JSON helpers ────────────────────────────────────────────────────────
+
+function safeParseTags(val: string | null | undefined): string[] {
+  try {
+    const parsed = JSON.parse(val || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 // ─── Tag Chip ─────────────────────────────────────────────────────────────────
 
 function TagChip({
@@ -107,7 +118,7 @@ function HighlightCard({
         {highlightTags.map((t) => (
           <TagChip key={t.id} tag={t} />
         ))}
-        {highlight.metadataTags && JSON.parse(highlight.metadataTags || "[]").map((mt: string) => (
+        {highlight.metadataTags && safeParseTags(highlight.metadataTags).map((mt: string) => (
           <span key={mt} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 uppercase tracking-widest">
             {mt}
           </span>
@@ -273,11 +284,11 @@ function HighlightDetailModal({
             </div>
 
             {/* Auto Tags */}
-            {highlight.metadataTags && JSON.parse(highlight.metadataTags || "[]").length > 0 && (
+            {highlight.metadataTags && safeParseTags(highlight.metadataTags).length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Auto Tags</p>
                 <div className="flex flex-wrap gap-2">
-                  {JSON.parse(highlight.metadataTags || "[]").map((mt: string) => (
+                  {safeParseTags(highlight.metadataTags).map((mt: string) => (
                     <span key={mt} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20 uppercase tracking-widest">
                       {mt}
                     </span>
@@ -497,29 +508,42 @@ export default function Compendium() {
 
   const fetchHighlights = useCallback(async () => {
     setHighlightsLoading(true);
-    const params = new URLSearchParams();
-    if (debouncedSearch) params.set("search", debouncedSearch);
-    if (selectedTagId) params.set("tagId", String(selectedTagId));
-    if (selectedDomain) params.set("domain", selectedDomain);
-    params.set("page", String(Math.floor(offset / LIMIT) + 1));
-    const res = await fetch(`/api/highlights?${params}`, { credentials: "include" });
-    if (res.ok) setHighlightsData(await res.json());
-    setHighlightsLoading(false);
+    try {
+      const params = new URLSearchParams();
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      if (selectedTagId) params.set("tagId", String(selectedTagId));
+      if (selectedDomain) params.set("domain", selectedDomain);
+      params.set("page", String(Math.floor(offset / LIMIT) + 1));
+      const res = await fetch(`/api/highlights?${params}`, { credentials: "include" });
+      if (res.ok) setHighlightsData(await res.json());
+    } catch {
+      // ignore network errors, loading state will clear
+    } finally {
+      setHighlightsLoading(false);
+    }
   }, [debouncedSearch, selectedTagId, selectedDomain, offset]);
 
   useEffect(() => { fetchHighlights(); }, [fetchHighlights]);
 
   const [tags, setTags] = useState<any[]>([]);
   const fetchTags = useCallback(async () => {
-    const res = await fetch("/api/tags", { credentials: "include" });
-    if (res.ok) setTags(await res.json());
+    try {
+      const res = await fetch("/api/tags", { credentials: "include" });
+      if (res.ok) setTags(await res.json());
+    } catch {
+      // ignore network errors
+    }
   }, []);
   useEffect(() => { fetchTags(); }, [fetchTags]);
 
   const [domainStats, setDomainStats] = useState<any[]>([]);
   const fetchDomainStats = useCallback(async () => {
-    const res = await fetch("/api/highlights/domain-stats", { credentials: "include" });
-    if (res.ok) setDomainStats(await res.json());
+    try {
+      const res = await fetch("/api/highlights/domain-stats", { credentials: "include" });
+      if (res.ok) setDomainStats(await res.json());
+    } catch {
+      // ignore network errors
+    }
   }, []);
   useEffect(() => { fetchDomainStats(); }, [fetchDomainStats]);
 

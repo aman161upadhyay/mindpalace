@@ -61,8 +61,38 @@ function useExtensionBridge() {
   };
 
   useEffect(() => {
-    checkExtension();
-  }, []);
+    const marker = document.documentElement.getAttribute("data-hc-extension");
+    setChecking(true);
+    if (!marker) {
+      setConnected(false);
+      setChecking(false);
+      return;
+    }
+
+    let active = true;
+    const t = setTimeout(() => {
+      if (active) { setConnected(true); setChecking(false); }
+    }, 1200);
+
+    const handler = (e: Event) => {
+      if (!active) return;
+      const detail = (e as CustomEvent).detail || {};
+      clearTimeout(t);
+      setConnected(true);
+      setExtSettings({ apiToken: detail.apiToken || "", dashboardUrl: detail.dashboardUrl || "" });
+      setChecking(false);
+      document.removeEventListener("HC_SETTINGS_RESPONSE", handler);
+    };
+
+    document.addEventListener("HC_SETTINGS_RESPONSE", handler);
+    document.dispatchEvent(new CustomEvent("HC_GET_SETTINGS"));
+
+    return () => {
+      active = false;
+      clearTimeout(t);
+      document.removeEventListener("HC_SETTINGS_RESPONSE", handler);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pushSettings = (apiToken: string, dashboardUrl: string) => {
     return new Promise<boolean>((resolve) => {
