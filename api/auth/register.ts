@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import bcrypt from "bcryptjs";
-import { nanoid } from "nanoid";
+import { randomBytes } from "crypto";
 import { eq } from "drizzle-orm";
 import { db } from "../../src/lib/db";
 import { users, apiTokens } from "../../src/schema";
@@ -52,7 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .returning({ id: users.id, username: users.username, email: users.email, theme: users.theme });
 
     const user = inserted[0];
-    const tokenValue = `hc_${nanoid(40)}`;
+    const tokenValue = `hc_${randomBytes(20).toString("hex")}`;
     await db.insert(apiTokens).values({ userId: user.id, token: tokenValue, label: "Chrome Extension" });
 
     const jwt = await signJwt({ userId: user.id, username: user.username });

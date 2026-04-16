@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { desc, eq } from "drizzle-orm";
-import { nanoid } from "nanoid";
+import { randomBytes } from "crypto";
 import { db } from "../../src/lib/db";
 import { apiTokens } from "../../src/schema";
 import { getAuthUserIdFromVercelReq } from "../../src/lib/auth";
@@ -24,7 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (rawLabel.length > 128)
         return res.status(400).json({ error: "Label must be 128 characters or fewer" });
       const tokenLabel = rawLabel || "Chrome Extension";
-      const tokenValue = `hc_${nanoid(40)}`;
+      const tokenValue = `hc_${randomBytes(20).toString("hex")}`;
       const inserted = await db.insert(apiTokens).values({ userId, token: tokenValue, label: tokenLabel }).returning();
       return res.status(201).json(inserted[0]);
     }
