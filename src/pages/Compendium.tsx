@@ -346,7 +346,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
 
   const handleExport = async () => {
     setIsLoading(true);
-    const res = await fetch(`/api/highlights/export?format=${format}`, { credentials: "include" });
+    const res = await fetch(`/api/highlights?action=export&format=${format}`, { credentials: "include" });
     if (res.ok) {
       const data = await res.json();
       const blob = new Blob([data.content], {
@@ -539,7 +539,7 @@ export default function Compendium() {
   const [domainStats, setDomainStats] = useState<any[]>([]);
   const fetchDomainStats = useCallback(async () => {
     try {
-      const res = await fetch("/api/highlights/domain-stats", { credentials: "include" });
+      const res = await fetch("/api/highlights?action=stats", { credentials: "include" });
       if (res.ok) setDomainStats(await res.json());
     } catch {
       // ignore network errors
