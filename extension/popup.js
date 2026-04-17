@@ -1,5 +1,8 @@
 // Popup Script — Highlight Compendium
 
+const HARDCODED_DASHBOARD_URL = "https://mindpalace-bice.vercel.app";
+const HARDCODED_API_TOKEN = "hc_89523f01462935157e81b0935f2535723d2eb9a3";
+
 document.addEventListener("DOMContentLoaded", () => {
   // ─── Elements ──────────────────────────────────────────────────────────────
   const viewMain = document.getElementById("view-main");
@@ -36,25 +39,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function loadSettingsIntoForm() {
     chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (response) => {
-      if (response) {
-        inputDashboardUrl.value = response.dashboardUrl || "";
-        inputApiToken.value = response.apiToken || "";
-      }
+      inputDashboardUrl.value = (response && response.dashboardUrl) || HARDCODED_DASHBOARD_URL;
+      inputApiToken.value = (response && response.apiToken) || HARDCODED_API_TOKEN;
     });
   }
 
   btnSaveSettings.addEventListener("click", () => {
-    const dashboardUrl = inputDashboardUrl.value.trim().replace(/\/$/, "");
+    const dashboardUrl = (inputDashboardUrl.value.trim() || HARDCODED_DASHBOARD_URL).replace(/\/$/, "");
     const apiToken = inputApiToken.value.trim();
-
-    if (!dashboardUrl) {
-      showStatus("Please enter the dashboard URL", "error");
-      return;
-    }
-    if (!apiToken) {
-      showStatus("Please enter your API token", "error");
-      return;
-    }
 
     chrome.runtime.sendMessage(
       { type: "SAVE_SETTINGS", apiToken, dashboardUrl },
@@ -80,15 +72,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   btnOpenDashboard.addEventListener("click", () => {
     chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (response) => {
-      const url = response?.dashboardUrl;
-      if (url) {
-        chrome.tabs.create({ url: url + "/compendium" });
-        window.close();
-      } else {
-        loadSettingsIntoForm();
-        showView("settings");
-        showStatus("Set your dashboard URL first", "error");
-      }
+      const url = (response && response.dashboardUrl) || HARDCODED_DASHBOARD_URL;
+      chrome.tabs.create({ url: url + "/compendium" });
+      window.close();
     });
   });
 
@@ -103,8 +89,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      if (!response?.success) {
-        const err = response?.error || "";
+      if (!response || !response.success) {
+        const err = (response && response.error) || "";
         if (err.includes("API token") || err.includes("dashboard")) {
           renderConfigPrompt();
         } else {
@@ -134,57 +120,47 @@ document.addEventListener("DOMContentLoaded", () => {
         day: "numeric",
       });
 
-      div.innerHTML = `
-        <div class="hi-text">"${escapeHtml(h.text)}"</div>
-        <div class="hi-meta">
-          <div class="hi-domain">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-            </svg>
-            ${escapeHtml(domain)}
-          </div>
-          <span>${date}</span>
-        </div>
-      `;
+      div.innerHTML =
+        '<div class="hi-text">"' + escapeHtml(h.text) + '"</div>' +
+        '<div class="hi-meta">' +
+        '<div class="hi-domain">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+        '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>' +
+        '<path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>' +
+        '</svg>' +
+        escapeHtml(domain) +
+        '</div>' +
+        '<span>' + date + '</span>' +
+        '</div>';
       highlightsList.appendChild(div);
     });
   }
 
   function renderEmpty() {
-    highlightsList.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">✦</div>
-        <div class="empty-title">No highlights yet</div>
-        <div class="empty-desc">
-          Select text on any webpage and press<br>
-          <strong>Ctrl+Shift+S</strong> to save your first highlight.
-        </div>
-      </div>
-    `;
+    highlightsList.innerHTML =
+      '<div class="empty-state">' +
+      '<div class="empty-icon">\u2726</div>' +
+      '<div class="empty-title">No highlights yet</div>' +
+      '<div class="empty-desc">Select text on any webpage and press<br><strong>Ctrl+Shift+S</strong> to save your first highlight.</div>' +
+      '</div>';
   }
 
   function renderConfigPrompt() {
-    highlightsList.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">⚙</div>
-        <div class="empty-title">Setup required</div>
-        <div class="empty-desc">
-          Click the settings icon above to enter your<br>
-          API token and dashboard URL.
-        </div>
-      </div>
-    `;
+    highlightsList.innerHTML =
+      '<div class="empty-state">' +
+      '<div class="empty-icon">\u2699</div>' +
+      '<div class="empty-title">Setup required</div>' +
+      '<div class="empty-desc">Click the settings icon above to enter your<br>API token and dashboard URL.</div>' +
+      '</div>';
   }
 
   function renderError(msg) {
-    highlightsList.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon" style="color:#ef4444">✗</div>
-        <div class="empty-title">Could not load</div>
-        <div class="empty-desc">${escapeHtml(msg)}</div>
-      </div>
-    `;
+    highlightsList.innerHTML =
+      '<div class="empty-state">' +
+      '<div class="empty-icon" style="color:#ef4444">\u2717</div>' +
+      '<div class="empty-title">Could not load</div>' +
+      '<div class="empty-desc">' + escapeHtml(msg) + '</div>' +
+      '</div>';
   }
 
   // ─── Utilities ─────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { eq } from "drizzle-orm";
 import { db } from "../../src/lib/db";
-import { users } from "../../src/schema";
+import { users, apiTokens } from "../../src/schema";
 import { verifyJwt } from "../../src/lib/auth";
 
 function parseCookies(cookieHeader: string): Record<string, string> {
@@ -46,7 +46,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: "User not found" });
     }
 
-    return res.status(200).json(found[0]);
+    const tokenRows = await db
+      .select({ token: apiTokens.token })
+      .from(apiTokens)
+      .where(eq(apiTokens.userId, payload.userId))
+      .limit(1);
+
+    return res.status(200).json({
+      ...found[0],
+      apiToken: tokenRows[0]?.token ?? null,
+    });
   }
 
   if (req.method === "PATCH") {

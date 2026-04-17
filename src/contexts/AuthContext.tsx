@@ -33,6 +33,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setUser(data);
+        // Sync real API token to extension if it's installed
+        if (data.apiToken && document.documentElement.getAttribute("data-hc-extension") === "true") {
+          document.dispatchEvent(new CustomEvent("HC_SAVE_SETTINGS", {
+            detail: { apiToken: data.apiToken, dashboardUrl: window.location.origin },
+          }));
+        }
       } else {
         setUser(null);
       }

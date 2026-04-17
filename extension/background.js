@@ -1,11 +1,25 @@
 // Background Service Worker — Highlight Compendium (MV3)
 // Handles: keyboard command relay, context menu, API calls
 
-const DEFAULT_DASHBOARD_URL = "https://your-app.vercel.app";
+const HARDCODED_DASHBOARD_URL = "https://mindpalace-bice.vercel.app";
+const HARDCODED_API_TOKEN = "hc_89523f01462935157e81b0935f2535723d2eb9a3";
 
-// ─── Context Menu Setup ───────────────────────────────────────────────────────
+// ─── Auto-initialise settings on install / update ────────────────────────────
 
 chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.sync.get(["dashboardUrl", "apiToken"], (items) => {
+    const updates = {};
+    if (!items.dashboardUrl || items.dashboardUrl.includes("your-app.vercel.app")) {
+      updates.dashboardUrl = HARDCODED_DASHBOARD_URL;
+    }
+    if (!items.apiToken) {
+      updates.apiToken = HARDCODED_API_TOKEN;
+    }
+    if (Object.keys(updates).length > 0) {
+      chrome.storage.sync.set(updates);
+    }
+  });
+
   chrome.contextMenus.create({
     id: "save-highlight",
     title: "Save to Compendium",
@@ -18,16 +32,33 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "save-highlight" && info.selectionText && tab?.id) {
     chrome.tabs.sendMessage(tab.id, {
-      type: "TRIGGER_SAVE",
+      type: "SAVE_SELECTION",
+      text: info.selectionText,
     });
   }
 });
 
 // ─── Keyboard Command ─────────────────────────────────────────────────────────
+// NOTE: In MV3, the `tab` parameter of onCommand is NOT reliable — it can be
+// undefined. Always query the active tab explicitly.
 
-chrome.commands.onCommand.addListener((command, tab) => {
-  if (command === "save-highlight" && tab?.id) {
-    chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_SAVE" });
+chrome.commands.onCommand.addListener((command) => {
+  if (command === "save-highlight") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];
+      if (tab && tab.id) {
+        chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_SAVE" }, () => {
+          // Suppress "Could not establish connection" errors for pages where
+          // the content script cannot run (e.g. chrome:// pages).
+          if (chrome.runtime.lastError) {
+            console.warn(
+              "[HC] Could not send TRIGGER_SAVE:",
+              chrome.runtime.lastError.message
+            );
+          }
+        });
+      }
+    });
   }
 });
 
@@ -38,9 +69,14 @@ function getSettings() {
     chrome.storage.sync.get(
       ["apiToken", "dashboardUrl", "theme", "hasSeenTutorial"],
       (items) => {
+        let currentUrl = items.dashboardUrl;
+        if (!currentUrl || currentUrl.includes("your-app.vercel.app")) {
+          currentUrl = HARDCODED_DASHBOARD_URL;
+        }
+
         resolve({
-          apiToken: items.apiToken || "",
-          dashboardUrl: (items.dashboardUrl || DEFAULT_DASHBOARD_URL).replace(/\/$/, ""),
+          apiToken: items.apiToken || HARDCODED_API_TOKEN,
+          dashboardUrl: currentUrl.replace(/\/$/, ""),
           theme: items.theme || "dark",
           hasSeenTutorial: items.hasSeenTutorial || false,
         });
@@ -93,17 +129,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function handleSaveHighlight(payload) {
   const { apiToken, dashboardUrl } = await getSettings();
 
-  if (!apiToken || !dashboardUrl) {
-    throw new Error(
-      "Please configure your API token and dashboard URL in the extension settings."
-    );
+  if (!apiToken) {
+    throw new Error("API token not configured. Please visit the dashboard to connect.");
   }
 
-  const response = await fetch(`${dashboardUrl}/api/extension/save`, {
+  const token = apiToken;
+  const baseUrl = (dashboardUrl || HARDCODED_DASHBOARD_URL).replace(/\/$/, "");
+
+  const response = await fetch(`${baseUrl}/api/extension/save`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      apiToken,
+      apiToken: token,
       text: payload.text,
       sourceUrl: payload.sourceUrl,
       pageTitle: payload.pageTitle,
@@ -116,21 +153,27 @@ async function handleSaveHighlight(payload) {
     throw new Error(`API error ${response.status}: ${text.slice(0, 200)}`);
   }
 
-  return response.json();
+  const json = await response.json().catch(() => {
+    throw new Error("Invalid response from server");
+  });
+  return json;
 }
 
 async function handleGetRecent() {
   const { apiToken, dashboardUrl } = await getSettings();
 
-  if (!apiToken || !dashboardUrl) {
+  if (!apiToken) return [];
+
+  const baseUrl = (dashboardUrl || HARDCODED_DASHBOARD_URL).replace(/\/$/, "");
+
+  try {
+    const response = await fetch(
+      `${baseUrl}/api/extension/recent?apiToken=${encodeURIComponent(apiToken)}`,
+      { method: "GET" }
+    );
+    if (!response.ok) return [];
+    return await response.json();
+  } catch {
     return [];
   }
-
-  const response = await fetch(
-    `${dashboardUrl}/api/extension/recent?apiToken=${encodeURIComponent(apiToken)}`,
-    { method: "GET" }
-  );
-
-  if (!response.ok) return [];
-  return response.json();
 }
