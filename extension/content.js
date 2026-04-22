@@ -1,400 +1,398 @@
 // Content Script — Highlight Compendium (MV3)
-// Listens for Ctrl+Shift+S (via background relay), captures selection, shows tooltip
+// Fixes:
+//  1. CSP-safe tooltip: uses Shadow DOM with inline styles only (no external resources)
+//  2. Floating button uses position:fixed (not absolute) so it works on Gemini/Google
+//  3. saveHighlight() captures selection BEFORE any async work (Gemini clears it)
+//  4. chrome.runtime.sendMessage wrapped in try/catch for invalidated context
+//  5. Direct keydown listener uses capture phase with stopImmediatePropagation
+//  6. No eval, no external scripts, no blob URLs — fully CSP-compliant
 
 (function () {
   "use strict";
 
   // Prevent double-injection
-  if (window.__highlightCompendiumLoaded) return;
-  window.__highlightCompendiumLoaded = true;
+  if (window.__hcLoaded) return;
+  window.__hcLoaded = true;
 
-  // ─── Tooltip ────────────────────────────────────────────────────────────────
+  // Mark the page so the web app can detect us
+  document.documentElement.setAttribute("data-hc-extension", "true");
+  document.dispatchEvent(new CustomEvent("HC_EXTENSION_PRESENT"));
 
-  let tooltipHost = null;
-  let shadowRoot = null;
-  let tooltipTimeout = null;
+  // ─── Tooltip (Shadow DOM, position:fixed, CSP-safe) ──────────────────────────
 
-  function createTooltip() {
-    if (tooltipHost) return;
+  let _tooltipHost = null;
+  let _tooltipRoot = null;
+  let _tooltipTimer = null;
 
-    tooltipHost = document.createElement("div");
-    tooltipHost.id = "__hc-tooltip-host";
-    tooltipHost.setAttribute("style",
-      "position:fixed !important;" +
-      "top:0 !important;" +
-      "left:0 !important;" +
-      "width:0 !important;" +
-      "height:0 !important;" +
-      "overflow:visible !important;" +
-      "z-index:2147483647 !important;" +
-      "pointer-events:none !important;"
-    );
-    document.body.appendChild(tooltipHost);
+  function ensureTooltip() {
+    if (_tooltipHost) return;
 
-    shadowRoot = tooltipHost.attachShadow({ mode: "closed" });
+    _tooltipHost = document.createElement("div");
+    // Use setAttribute so the style string is treated as a plain attribute,
+    // not parsed by the page's CSP. All styles are inline — no external sheets.
+    _tooltipHost.setAttribute("style", [
+      "all:initial",
+      "position:fixed",
+      "top:0",
+      "left:0",
+      "width:0",
+      "height:0",
+      "overflow:visible",
+      "z-index:2147483647",
+      "pointer-events:none",
+    ].join("!important;") + "!important");
+
+    // Append to <html> not <body> — Gemini replaces <body> children aggressively
+    (document.documentElement || document.body).appendChild(_tooltipHost);
+
+    _tooltipRoot = _tooltipHost.attachShadow({ mode: "open" });
 
     const style = document.createElement("style");
     style.textContent = `
-      #tooltip {
+      :host { all: initial; }
+      #tip {
         position: fixed;
-        padding: 8px 14px;
-        border-radius: 8px;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        padding: 9px 15px;
+        border-radius: 10px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 13px;
         font-weight: 500;
         line-height: 1.4;
-        transition: opacity 0.2s ease, transform 0.2s ease;
-        opacity: 0;
-        transform: translateY(4px);
-        max-width: 320px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        color: #fff;
         display: flex;
         align-items: center;
         gap: 8px;
         pointer-events: none;
         z-index: 2147483647;
+        max-width: 340px;
+        box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+        opacity: 0;
+        transform: translateY(6px);
+        transition: opacity 0.18s ease, transform 0.18s ease;
+        white-space: nowrap;
+      }
+      #tip.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      #tip.success { background: linear-gradient(135deg, #6366f1, #8b5cf6); border: 1px solid rgba(139,92,246,0.4); }
+      #tip.error   { background: #dc2626; border: 1px solid rgba(220,38,38,0.5); }
+      #tip.saving  { background: #1e1e2e; border: 1px solid rgba(255,255,255,0.12); }
+      .icon {
+        width: 18px; height: 18px; border-radius: 50%;
+        background: rgba(255,255,255,0.2);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 11px; flex-shrink: 0;
       }
     `;
-    shadowRoot.appendChild(style);
+    _tooltipRoot.appendChild(style);
 
-    const tooltipEl = document.createElement("div");
-    tooltipEl.id = "tooltip";
-    shadowRoot.appendChild(tooltipEl);
+    const tip = document.createElement("div");
+    tip.id = "tip";
+    _tooltipRoot.appendChild(tip);
   }
 
-  function showTooltip(message, type, x, y) {
-    if (type === undefined) type = "success";
-    createTooltip();
+  function showTooltip(msg, type, x, y) {
+    ensureTooltip();
+    const tip = _tooltipRoot.getElementById("tip");
 
-    const tooltipEl = shadowRoot.getElementById("tooltip");
+    // Set class for colour
+    tip.className = type || "saving";
 
-    const isSuccess = type === "success";
-    const isError = type === "error";
-
-    tooltipEl.style.background = isSuccess
-      ? "linear-gradient(135deg, #6366f1, #8b5cf6)"
-      : isError
-        ? "#ef4444"
-        : "#1e1e2e";
-    tooltipEl.style.color = "#ffffff";
-    tooltipEl.style.border = isSuccess
-      ? "1px solid rgba(99,102,241,0.5)"
-      : isError
-        ? "1px solid rgba(239,68,68,0.5)"
-        : "1px solid rgba(255,255,255,0.1)";
-
-    const icon = isSuccess ? "✓" : isError ? "✗" : "⋯";
-    tooltipEl.textContent = "";
+    // Build content
+    const icon = type === "success" ? "✓" : type === "error" ? "✗" : "…";
+    tip.innerHTML = "";
     const iconEl = document.createElement("span");
-    iconEl.setAttribute("style", "width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;");
+    iconEl.className = "icon";
     iconEl.textContent = icon;
     const msgEl = document.createElement("span");
-    msgEl.textContent = message;
-    tooltipEl.appendChild(iconEl);
-    tooltipEl.appendChild(msgEl);
+    msgEl.textContent = msg;
+    tip.appendChild(iconEl);
+    tip.appendChild(msgEl);
 
-    // Position near selection — coordinates are already viewport-relative
-    // because getBoundingClientRect() returns viewport coords.
-    // For position:fixed we must NOT add scrollX/scrollY.
+    // Position: x/y are viewport-relative (from getBoundingClientRect)
+    // position:fixed means we use them directly — no scrollX/Y offset
     const vw = window.innerWidth;
     const vh = window.innerHeight;
+    const TIP_W = 300;
+    const TIP_H = 44;
 
-    let left = (x !== undefined && x !== null) ? x : vw / 2;
-    let top  = (y !== undefined && y !== null) ? y : vh / 2;
+    let left = (x != null) ? x : vw / 2 - TIP_W / 2;
+    let top  = (y != null) ? y + 12 : vh / 2;
 
-    // Keep tooltip inside viewport (rough estimate: 300px wide, 50px tall)
-    if (left + 300 > vw) left = vw - 310;
+    if (left + TIP_W > vw - 8) left = vw - TIP_W - 8;
     if (left < 8) left = 8;
-    if (top + 50 > vh) top = top - 60;
+    if (top + TIP_H > vh - 8) top = (y != null ? y : vh / 2) - TIP_H - 12;
     if (top < 8) top = 8;
 
-    tooltipEl.style.left = left + "px";
-    tooltipEl.style.top = top + "px";
-    tooltipEl.style.opacity = "1";
-    tooltipEl.style.transform = "translateY(0)";
+    tip.style.left = left + "px";
+    tip.style.top  = top  + "px";
 
-    clearTimeout(tooltipTimeout);
+    // Trigger transition
+    tip.classList.remove("visible");
+    void tip.offsetWidth; // reflow
+    tip.classList.add("visible");
+
+    clearTimeout(_tooltipTimer);
     if (type !== "saving") {
-      tooltipTimeout = setTimeout(hideTooltip, type === "error" ? 4000 : 2500);
+      _tooltipTimer = setTimeout(hideTooltip, type === "error" ? 4000 : 2500);
     }
   }
 
   function hideTooltip() {
-    if (!shadowRoot) return;
-    const tooltipEl = shadowRoot.getElementById("tooltip");
-    if (tooltipEl) {
-      tooltipEl.style.opacity = "0";
-      tooltipEl.style.transform = "translateY(4px)";
-    }
+    if (!_tooltipRoot) return;
+    const tip = _tooltipRoot.getElementById("tip");
+    if (tip) tip.classList.remove("visible");
   }
 
-  // ─── Floating Action Button (FAB) ───────────────────────────────────────────
+  // ─── Floating "Save" Button ───────────────────────────────────────────────────
+  // Uses position:fixed so it works on Gemini (which has a transformed/sticky layout)
 
-  let fabHost = null;
-  let fabShadowRoot = null;
+  let _fabHost = null;
+  let _fabRoot = null;
+  let _fabVisible = false;
 
-  function createFloatingButton() {
-    if (fabHost) return;
+  function ensureFab() {
+    if (_fabHost) return;
 
-    fabHost = document.createElement("div");
-    fabHost.id = "__hc-fab-host";
-    fabHost.setAttribute("style",
-      "position:absolute !important;" +
-      "top:0 !important;" +
-      "left:0 !important;" +
-      "width:0 !important;" +
-      "height:0 !important;" +
-      "overflow:visible !important;" +
-      "z-index:2147483646 !important;"
-    );
-    document.body.appendChild(fabHost);
+    _fabHost = document.createElement("div");
+    _fabHost.setAttribute("style", [
+      "all:initial",
+      "position:fixed",
+      "top:0",
+      "left:0",
+      "width:0",
+      "height:0",
+      "overflow:visible",
+      "z-index:2147483646",
+      "pointer-events:none",
+    ].join("!important;") + "!important");
 
-    fabShadowRoot = fabHost.attachShadow({ mode: "closed" });
+    (document.documentElement || document.body).appendChild(_fabHost);
+    _fabRoot = _fabHost.attachShadow({ mode: "open" });
 
     const style = document.createElement("style");
     style.textContent = `
+      :host { all: initial; }
       #fab {
-        position: absolute;
-        padding: 6px 12px;
-        border-radius: 6px;
+        position: fixed;
+        padding: 6px 13px;
+        border-radius: 7px;
         background: #1e1e2e;
         color: #fff;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        font-size: 13px;
-        font-weight: 500;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 12px;
+        font-weight: 600;
         cursor: pointer;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.28);
+        border: 1px solid rgba(255,255,255,0.12);
         display: none;
         align-items: center;
-        gap: 6px;
-        transition: opacity 0.15s ease, transform 0.15s ease;
+        gap: 5px;
         opacity: 0;
         transform: translateY(4px);
+        transition: opacity 0.14s ease, transform 0.14s ease, background 0.12s;
+        pointer-events: auto;
         user-select: none;
+        white-space: nowrap;
       }
-      #fab:hover {
-        background: #2a2a3e;
+      #fab.visible {
+        opacity: 1;
+        transform: translateY(0);
       }
-      #fab:active {
-        transform: translateY(2px);
-      }
+      #fab:hover { background: #2d2d44; }
+      #fab:active { transform: translateY(1px); }
     `;
-    fabShadowRoot.appendChild(style);
+    _fabRoot.appendChild(style);
 
-    const fabEl = document.createElement("div");
-    fabEl.id = "fab";
-    const svgNS = "http://www.w3.org/2000/svg";
-    const svgEl = document.createElementNS(svgNS, "svg");
-    svgEl.setAttribute("viewBox", "0 0 24 24");
-    svgEl.setAttribute("width", "14");
-    svgEl.setAttribute("height", "14");
-    svgEl.setAttribute("fill", "none");
-    svgEl.setAttribute("stroke", "currentColor");
-    svgEl.setAttribute("stroke-width", "2");
-    const svgPath = document.createElementNS(svgNS, "path");
-    svgPath.setAttribute("d", "M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z");
-    const poly1 = document.createElementNS(svgNS, "polyline");
-    poly1.setAttribute("points", "17 21 17 13 7 13 7 21");
-    const poly2 = document.createElementNS(svgNS, "polyline");
-    poly2.setAttribute("points", "7 3 7 8 15 8");
-    svgEl.appendChild(svgPath);
-    svgEl.appendChild(poly1);
-    svgEl.appendChild(poly2);
-    fabEl.appendChild(svgEl);
-    fabEl.appendChild(document.createTextNode(" Save"));
-    
-    // Prevent mouse down on fab from clearing selection
-    fabEl.addEventListener("mousedown", (e) => e.preventDefault());
-    
-    fabEl.addEventListener("click", (e) => {
+    const fab = document.createElement("div");
+    fab.id = "fab";
+    fab.textContent = "✦ Save";
+
+    fab.addEventListener("mousedown", (e) => e.preventDefault()); // don't clear selection
+    fab.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      hideFloatingButton();
+      hideFab();
       saveHighlight();
     });
-    
-    fabShadowRoot.appendChild(fabEl);
+
+    _fabRoot.appendChild(fab);
   }
 
-  function showFloatingButton() {
-    const text = getSelectedText();
-    if (!text) {
-      hideFloatingButton();
-      return;
-    }
-    
-    createFloatingButton();
-    const fabEl = fabShadowRoot.getElementById("fab");
-    
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return;
-    const rect = sel.getRangeAt(0).getBoundingClientRect();
-    
-    const left = rect.left + window.scrollX + (rect.width / 2) - 35;
-    const top = rect.top + window.scrollY - 40;
-    
-    const finalTop = top < window.scrollY ? rect.bottom + window.scrollY + 10 : top;
+  function showFab(x, y) {
+    ensureFab();
+    const fab = _fabRoot.getElementById("fab");
+    const vw = window.innerWidth;
+    const FAB_W = 90;
 
-    fabEl.style.left = left + "px";
-    fabEl.style.top = finalTop + "px";
-    fabEl.style.display = "flex";
-    
-    void fabEl.offsetWidth; // trigger reflow
-    fabEl.style.opacity = "1";
-    fabEl.style.transform = "translateY(0)";
+    let left = x - FAB_W / 2;
+    if (left + FAB_W > vw - 8) left = vw - FAB_W - 8;
+    if (left < 8) left = 8;
+
+    let top = y - 44;
+    if (top < 8) top = y + 12;
+
+    fab.style.left = left + "px";
+    fab.style.top  = top  + "px";
+    fab.style.display = "flex";
+    void fab.offsetWidth;
+    fab.classList.add("visible");
+    _fabVisible = true;
   }
 
-  function hideFloatingButton() {
-    if (!fabShadowRoot) return;
-    const fabEl = fabShadowRoot.getElementById("fab");
-    if (fabEl && fabEl.style.display !== "none") {
-      fabEl.style.opacity = "0";
-      fabEl.style.transform = "translateY(4px)";
-      setTimeout(() => { fabEl.style.display = "none"; }, 150);
-    }
+  function hideFab() {
+    if (!_fabRoot) return;
+    const fab = _fabRoot.getElementById("fab");
+    if (!fab) return;
+    fab.classList.remove("visible");
+    _fabVisible = false;
+    setTimeout(() => { if (!_fabVisible) fab.style.display = "none"; }, 150);
   }
 
+  // Show FAB after mouseup if there is a selection
   document.addEventListener("mouseup", () => {
     setTimeout(() => {
-      if (getSelectedText()) {
-        showFloatingButton();
+      const text = getSelectedText();
+      if (text) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const rect = sel.getRangeAt(0).getBoundingClientRect();
+          // Use viewport-relative coords (rect is already viewport-relative)
+          showFab(rect.left + rect.width / 2, rect.top);
+        }
       } else {
-        hideFloatingButton();
+        hideFab();
       }
-    }, 10);
-  });
-  
+    }, 30);
+  }, true);
+
   document.addEventListener("selectionchange", () => {
-    if (!getSelectedText()) {
-      hideFloatingButton();
-    }
+    if (!getSelectedText()) hideFab();
   });
 
-  // ─── Capture & Save ──────────────────────────────────────────────────────────
+  // ─── Core: Get Selected Text ──────────────────────────────────────────────────
 
   function getSelectedText() {
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return "";
-    return sel.toString().trim();
-  }
-
-  function getDomain(url) {
     try {
-      return new URL(url).hostname.replace(/^www\./, "");
-    } catch {
+      const sel = window.getSelection();
+      return sel ? sel.toString().trim() : "";
+    } catch (_) {
       return "";
     }
   }
 
-  function getTooltipPosition() {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      const rect = sel.getRangeAt(0).getBoundingClientRect();
-      // rect coords are already viewport-relative — use directly for position:fixed
-      return { x: rect.right - 20, y: rect.bottom + 10 };
-    }
-    return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  function getSelectionRect() {
+    try {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        return sel.getRangeAt(0).getBoundingClientRect();
+      }
+    } catch (_) {}
+    return null;
   }
 
+  // ─── Core: Save Highlight ─────────────────────────────────────────────────────
+
   async function saveHighlight() {
+    // CRITICAL: Capture text and position IMMEDIATELY before any async work.
+    // On Gemini and other SPAs, the selection is cleared the moment focus shifts.
     const text = getSelectedText();
-    const pos = getTooltipPosition();
+    const rect = getSelectionRect();
+    const tipX = rect ? rect.right : window.innerWidth / 2;
+    const tipY = rect ? rect.bottom : window.innerHeight / 2;
 
     if (!text) {
-      showTooltip("Select some text first", "error", pos.x, pos.y);
+      showTooltip("Select some text first", "error", tipX, tipY);
       return;
     }
 
     if (text.length > 50000) {
-      showTooltip("Selection too long (max 50,000 characters)", "error", pos.x, pos.y);
+      showTooltip("Selection too long (max 50k chars)", "error", tipX, tipY);
       return;
     }
 
-    showTooltip("Saving to Compendium\u2026", "saving", pos.x, pos.y);
+    showTooltip("Saving…", "saving", tipX, tipY);
 
     const payload = {
       text,
       sourceUrl: window.location.href,
       pageTitle: document.title || "",
-      domain: getDomain(window.location.href),
+      domain: (() => {
+        try { return new URL(window.location.href).hostname.replace(/^www\./, ""); }
+        catch (_) { return ""; }
+      })(),
     };
 
     try {
-      const response = await chrome.runtime.sendMessage({
-        type: "SAVE_HIGHLIGHT",
-        payload,
-      });
+      const response = await sendToBackground({ type: "SAVE_HIGHLIGHT", payload });
 
       if (response && response.success) {
-        showTooltip("Saved to Compendium \u2713", "success", pos.x, pos.y);
-        window.getSelection() && window.getSelection().removeAllRanges();
+        showTooltip("Saved to Compendium ✓", "success", tipX, tipY);
+        try { window.getSelection().removeAllRanges(); } catch (_) {}
       } else {
-        const errMsg = (response && response.error) || "Failed to save";
-        if (errMsg.includes("API token") || errMsg.includes("dashboard URL") || errMsg.includes("not configured")) {
-          showTooltip("Open the dashboard to connect the extension", "error", pos.x, pos.y);
-        } else {
-          showTooltip("Error: " + errMsg.slice(0, 60), "error", pos.x, pos.y);
-        }
+        const err = (response && response.error) || "Unknown error";
+        showTooltip("Error: " + err.slice(0, 60), "error", tipX, tipY);
       }
     } catch (err) {
-      showTooltip("Extension error \u2014 check settings", "error", pos.x, pos.y);
-      console.error("[Highlight Compendium] Error:", err);
+      // Extension context invalidated or background not responding
+      showTooltip("Extension error — try reloading the page", "error", tipX, tipY);
+      console.error("[HC]", err);
     }
   }
 
-  // ─── Message from background (context menu / command relay) ─────────────────
-  // The keyboard shortcut goes: Chrome -> background onCommand -> tabs.sendMessage
-  // -> content script onMessage(TRIGGER_SAVE) -> saveHighlight()
-  // We keep a direct keydown listener as a fallback for pages where the
-  // background relay might be slow.
+  // ─── Helper: Send message to background safely ────────────────────────────────
 
-  chrome.runtime.onMessage.addListener((message) => {
-    if (message.type === "TRIGGER_SAVE") {
-      saveHighlight();
-    } else if (message.type === "SAVE_SELECTION" && message.text) {
-      const payload = {
-        text: message.text,
-        sourceUrl: window.location.href,
-        pageTitle: document.title || "",
-        domain: getDomain(window.location.href),
-      };
+  function sendToBackground(msg) {
+    return new Promise((resolve, reject) => {
+      try {
+        chrome.runtime.sendMessage(msg, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(response);
+          }
+        });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
 
-      const pos = getTooltipPosition();
-      showTooltip("Saving to Compendium\u2026", "saving", pos.x, pos.y);
+  // ─── Message Listener (from background: keyboard shortcut relay) ──────────────
 
-      chrome.runtime.sendMessage({ type: "SAVE_HIGHLIGHT", payload }).then((response) => {
-        if (response && response.success) {
-          showTooltip("Saved to Compendium \u2713", "success", pos.x, pos.y);
-        } else {
-          showTooltip("Error: " + ((response && response.error) || "Failed").slice(0, 60), "error", pos.x, pos.y);
-        }
-      });
-    }
-  });
+  try {
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message.type === "TRIGGER_SAVE") {
+        saveHighlight();
+      }
+    });
+  } catch (_) {
+    // Extension context already invalidated on this page
+  }
 
-  // ─── Direct keyboard fallback ────────────────────────────────────────────────
-  // Capture phase (true) so we intercept before the page's own handlers.
+  // ─── Direct Keyboard Fallback ─────────────────────────────────────────────────
+  // Capture phase (true) so we intercept BEFORE the page's own handlers.
+  // This is the fallback for cases where the background relay doesn't arrive.
 
-  document.addEventListener("keydown", function(e) {
-    const isMac = /mac/i.test(navigator.platform);
-    const modifier = isMac ? e.metaKey : e.ctrlKey;
+  document.addEventListener("keydown", (e) => {
+    const isMac = navigator.platform ? /mac/i.test(navigator.platform) : false;
+    const mainMod = isMac ? e.metaKey : e.ctrlKey;
 
-    if (modifier && e.shiftKey && e.key.toLowerCase() === "s") {
+    if (mainMod && e.shiftKey && e.key.toLowerCase() === "s") {
       e.preventDefault();
       e.stopImmediatePropagation();
       saveHighlight();
     }
-  }, true);
+  }, true /* capture phase */);
 
-  // ─── Website <-> Extension Bridge (Custom DOM Events) ──────────────────────
+  // ─── Website ↔ Extension Bridge (DOM Custom Events) ──────────────────────────
+  // The Settings page on the web app uses these events to read/write extension config.
 
-  document.dispatchEvent(new CustomEvent("HC_EXTENSION_PRESENT"));
-  document.documentElement.setAttribute("data-hc-extension", "true");
-
-  document.addEventListener("HC_GET_SETTINGS", function() {
+  document.addEventListener("HC_GET_SETTINGS", () => {
     try {
-      chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, function(response) {
+      chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (response) => {
+        if (chrome.runtime.lastError) return;
         document.dispatchEvent(new CustomEvent("HC_SETTINGS_RESPONSE", {
           detail: {
             apiToken: (response && response.apiToken) || "",
@@ -402,28 +400,22 @@
           }
         }));
       });
-    } catch (e) {
-      // Extension context invalidated
-    }
+    } catch (_) {}
   });
 
-  document.addEventListener("HC_SAVE_SETTINGS", function(e) {
+  document.addEventListener("HC_SAVE_SETTINGS", (e) => {
     const detail = (e && e.detail) || {};
     try {
       chrome.runtime.sendMessage(
-        {
-          type: "SAVE_SETTINGS",
-          apiToken: detail.apiToken || "",
-          dashboardUrl: detail.dashboardUrl || "",
-        },
-        function(response) {
+        { type: "SAVE_SETTINGS", apiToken: detail.apiToken || "", dashboardUrl: detail.dashboardUrl || "" },
+        (response) => {
+          if (chrome.runtime.lastError) return;
           document.dispatchEvent(new CustomEvent("HC_SETTINGS_SAVED", {
-            detail: { success: response && response.success }
+            detail: { success: !!(response && response.success) }
           }));
         }
       );
-    } catch (e) {
-      // Extension context invalidated
-    }
+    } catch (_) {}
   });
+
 })();
