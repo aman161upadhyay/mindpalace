@@ -15,6 +15,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const id = Number(req.query.id);
     if (!id || isNaN(id)) return res.status(400).json({ error: "Invalid highlight ID" });
 
+    if (req.method === "GET") {
+      const existing = await db
+        .select()
+        .from(highlights)
+        .where(and(eq(highlights.id, id), eq(highlights.userId, userId)))
+        .limit(1);
+      if (existing.length === 0) return res.status(404).json({ error: "Highlight not found" });
+      return res.status(200).json(existing[0]);
+    }
+
     if (req.method === "PATCH") {
       const { notes, tagIds } = req.body ?? {};
       if (notes !== undefined && (typeof notes !== "string" || notes.length > 100000)) {

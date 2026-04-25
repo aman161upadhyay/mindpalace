@@ -396,7 +396,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     grouped[key].push(h);
   }
 
-  let md = `# My Highlight Compendium\n\n*Exported ${new Date().toLocaleDateString()}*\n\n---\n\n`;
+  let md = `# My Mind Palace\n\n*Exported ${new Date().toLocaleDateString()}*\n\n---\n\n`;
   for (const [domain, items] of Object.entries(grouped)) {
     md += `## ${domain}\n\n`;
     for (const h of items) {
@@ -1083,7 +1083,7 @@ describe("GET /api/highlights/export", () => {
     expect(res.statusCode).toBe(200);
     const body = res.body as { filename: string; content: string };
     expect(body.filename).toBe("highlights.md");
-    expect(body.content).toContain("# My Highlight Compendium");
+    expect(body.content).toContain("# My Mind Palace");
     expect(body.content).toContain("Export test highlight");
     expect(body.content).toContain("A note");
   });

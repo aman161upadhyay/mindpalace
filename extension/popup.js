@@ -1,4 +1,4 @@
-// Popup Script — Highlight Compendium
+// Popup Script — Mind Palace
 // Hardcoded defaults so the popup always works without manual configuration.
 
 const DASHBOARD_URL = "https://mindpalace-bice.vercel.app";
@@ -56,7 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ─── Open Dashboard ──────────────────────────────────────────────────────────
 
   btnDashboard.addEventListener("click", () => {
-    chrome.tabs.create({ url: DASHBOARD_URL + "/compendium" });
+    chrome.tabs.create({ url: DASHBOARD_URL + "/mind-palace" });
     window.close();
   });
 

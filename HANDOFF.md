@@ -1,4 +1,4 @@
-# Handoff Document — Highlight Compendium Extension Debugging
+# Handoff Document — Mind Palace Extension Debugging
 
 ## User Frustration Note
 The previous assistant (Claude) repeatedly suggested refreshing tabs and reloading the extension despite the user explicitly confirming they already understood and performed those steps every single time. This was a major failure of the session. Do NOT repeat this advice unless specifically asked. The user knows how Chrome extension development works.
@@ -16,8 +16,8 @@ The previous assistant (Claude) repeatedly suggested refreshing tabs and reloadi
 
 ### What Does NOT Work
 1. **Ctrl+Shift+S on BBC does nothing** — content script is confirmed running (returns "true"), but the shortcut produces zero response. Not a stale tab issue. Unknown root cause.
-2. **Save to Compendium (context menu) returns 404** — API call is made but gets 404. Likely because `chrome.storage.sync` has no saved settings (background service worker was dead during all previous save attempts), so extension uses default placeholder URL `https://your-app.vercel.app`. User needs to verify what URL is stored. Check by opening popup → gear icon → read Dashboard URL field.
-3. **"Go to Compendium" in popup doesn't open tab** — was caused by missing `"tabs"` permission, now fixed in manifest. May still require settings to be re-saved.
+2. **Save to Mind Palace (context menu) returns 404** — API call is made but gets 404. Likely because `chrome.storage.sync` has no saved settings (background service worker was dead during all previous save attempts), so extension uses default placeholder URL `https://your-app.vercel.app`. User needs to verify what URL is stored. Check by opening popup → gear icon → read Dashboard URL field.
+3. **"Go to Mind Palace" in popup doesn't open tab** — was caused by missing `"tabs"` permission, now fixed in manifest. May still require settings to be re-saved.
 
 ---
 
@@ -38,7 +38,7 @@ The previous assistant (Claude) repeatedly suggested refreshing tabs and reloadi
 | `api/tokens/index.ts` | CORS, label validation, replaced nanoid |
 | `api/extension/save.ts` | Rate limiting, CORS, URL/domain validation |
 | `api/extension/recent.ts` | CORS added |
-| `src/pages/Compendium.tsx` | Updated fetch URLs for merged endpoints |
+| `src/pages/MindPalace.tsx` | Updated fetch URLs for merged endpoints |
 | `vercel.json` | CORS headers at edge level, rewrite rules (see issues below) |
 | `package.json` | Removed `"type": "module"`, downgraded jose to v4, removed nanoid |
 | `tsconfig.app.json` | Added baseUrl, paths alias, ignoreDeprecations |

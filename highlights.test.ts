@@ -239,7 +239,7 @@ describe("highlights.export", () => {
     expect(res.statusCode).toBe(200);
     const body = res.body as Record<string, unknown>;
     expect(body.filename).toBe("highlights.md");
-    expect(body.content).toContain("# My Highlight Compendium");
+    expect(body.content).toContain("# My Mind Palace");
     expect(body.content).toContain("Export test highlight");
     expect(body.content).toContain("A note");
   });

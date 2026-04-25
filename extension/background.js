@@ -1,4 +1,4 @@
-// Background Service Worker — Highlight Compendium (MV3)
+// Background Service Worker — Mind Palace (MV3)
 
 const DEFAULT_DASHBOARD_URL = "https://mindpalace-bice.vercel.app";
 
@@ -19,7 +19,7 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: "save-highlight",
-      title: "Save to Compendium",
+      title: "Save to Mind Palace",
       contexts: ["selection"],
     });
   });

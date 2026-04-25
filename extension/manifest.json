@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Highlight Compendium",
+  "name": "Mind Palace",
   "version": "1.1.0",
   "description": "Save highlighted text from any webpage to your personal knowledge base. Press Ctrl+Shift+S to capture.",
   "icons": {
@@ -17,7 +17,7 @@
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     },
-    "default_title": "Highlight Compendium"
+    "default_title": "Mind Palace"
   },
   "background": {
     "service_worker": "background.js",
@@ -47,7 +47,7 @@
         "default": "Ctrl+Shift+S",
         "mac": "Command+Shift+S"
       },
-      "description": "Save highlighted text to Compendium"
+      "description": "Save highlighted text to Mind Palace"
     }
   },
   "web_accessible_resources": [

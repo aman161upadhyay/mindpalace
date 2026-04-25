@@ -11,7 +11,7 @@ export default function Home() {
   // Navigate in useEffect to avoid calling setState during render
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      navigate("/compendium");
+      navigate("/mind-palace");
     }
   }, [loading, isAuthenticated, navigate]);
 
@@ -24,12 +24,12 @@ export default function Home() {
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
             <Highlighter className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span className="font-semibold text-foreground tracking-tight">Highlight Compendium</span>
+          <span className="font-semibold text-foreground tracking-tight">Mind Palace</span>
         </div>
         <div className="flex items-center gap-3">
           {loading ? null : isAuthenticated ? (
-            <Button onClick={() => navigate("/compendium")} size="sm">
-              Open Compendium <ArrowRight className="w-3.5 h-3.5 ml-1" />
+            <Button onClick={() => navigate("/mind-palace")} size="sm">
+              Open Mind Palace <ArrowRight className="w-3.5 h-3.5 ml-1" />
             </Button>
           ) : (
             <Button size="sm" onClick={() => navigate("/login")}>
@@ -40,53 +40,54 @@ export default function Home() {
       </nav>
 
       {/* Hero */}
-      <section className="relative flex flex-col items-center justify-center min-h-screen px-6 text-center pt-20">
-        {/* Background glow */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/5 blur-3xl" />
-          <div className="absolute top-2/3 left-1/3 w-[400px] h-[400px] rounded-full bg-purple-500/5 blur-3xl" />
+      <section className="relative flex flex-col items-center justify-center min-h-[90vh] px-6 text-center pt-24 pb-16">
+        {/* Subtle Background Glow */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none flex items-center justify-center">
+          <div className="w-[800px] h-[800px] rounded-full bg-primary/5 blur-[120px]" />
         </div>
 
-        <div className="relative z-10 max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-medium mb-8">
-            <Zap className="w-3 h-3" />
-            Chrome Extension + Web Dashboard
+        <div className="relative z-10 max-w-4xl mx-auto flex flex-col items-center">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/5 border border-border/50 text-muted-foreground text-xs font-mono mb-12 tracking-wide uppercase">
+            <Zap className="w-3 h-3 text-primary" />
+            Zero-Latency Knowledge Capture
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-[1.1]" style={{ fontFamily: '"Instrument Serif", serif', fontStyle: 'italic' }}>
-            Your personal{" "}
-            <span className="gradient-text not-italic font-sans">knowledge base</span>
-            {" "}starts with a highlight
+          <h1 className="text-4xl md:text-6xl tracking-tight mb-8 leading-[1.1] text-foreground font-medium max-w-3xl">
+            Your digital library. <br />
+            Orchestrated in your{" "}
+            <span style={{ fontFamily: '"Instrument Serif", serif', fontStyle: 'italic', fontWeight: 'normal' }} className="text-primary text-5xl md:text-7xl ml-1">
+              Mind Palace.
+            </span>
           </h1>
 
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-            Capture any text from any webpage with a single shortcut. Build a searchable compendium of everything that matters to you — from research papers to Gemini answers.
+          <p className="text-lg text-muted-foreground max-w-xl mx-auto mb-12 leading-relaxed font-light">
+            Capture profound text from any surface with a single keystroke. Build a perfectly categorized, searchable compendium of everything that matters to you.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             {isAuthenticated ? (
-              <Button size="lg" onClick={() => navigate("/compendium")} className="gap-2 magnetic-btn">
-                Open My Compendium <ArrowRight className="w-4 h-4" />
+              <Button size="lg" onClick={() => navigate("/mind-palace")} className="gap-2 magnetic-btn h-12 px-8 rounded-full shadow-lg shadow-primary/10">
+                Enter Mind Palace <ArrowRight className="w-4 h-4" />
               </Button>
             ) : (
-              <Button size="lg" className="gap-2 magnetic-btn" onClick={() => navigate("/login")}>
-                Get Started Free <ArrowRight className="w-4 h-4" />
+              <Button size="lg" className="gap-2 magnetic-btn h-12 px-8 rounded-full shadow-lg shadow-primary/10" onClick={() => navigate("/login")}>
+                Initialize Library <ArrowRight className="w-4 h-4" />
               </Button>
             )}
-            <Button size="lg" variant="outline" asChild className="gap-2 magnetic-btn">
-              <a href="#features">See Features</a>
+            <Button size="lg" variant="ghost" asChild className="gap-2 magnetic-btn h-12 px-8 rounded-full hover:bg-secondary/50">
+              <a href="#features">Explore Architecture</a>
             </Button>
           </div>
 
           {/* Shortcut badge */}
-          <div className="mt-10 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            <span>Press</span>
-            <kbd className="px-2 py-0.5 rounded bg-secondary border border-border text-xs font-mono">Ctrl</kbd>
-            <span>+</span>
-            <kbd className="px-2 py-0.5 rounded bg-secondary border border-border text-xs font-mono">Shift</kbd>
-            <span>+</span>
-            <kbd className="px-2 py-0.5 rounded bg-secondary border border-border text-xs font-mono">S</kbd>
-            <span>to save any highlighted text</span>
+          <div className="mt-16 flex items-center justify-center gap-2 text-sm text-muted-foreground/70">
+            <span>Global Capture Protocol</span>
+            <span className="mx-2 text-border">|</span>
+            <div className="flex gap-1">
+              <kbd className="px-2 py-0.5 rounded-md bg-secondary/30 border border-border/50 text-[11px] font-mono shadow-sm">Ctrl</kbd>
+              <kbd className="px-2 py-0.5 rounded-md bg-secondary/30 border border-border/50 text-[11px] font-mono shadow-sm">Shift</kbd>
+              <kbd className="px-2 py-0.5 rounded-md bg-secondary/30 border border-border/50 text-[11px] font-mono shadow-sm">S</kbd>
+            </div>
           </div>
         </div>
       </section>
@@ -116,7 +117,7 @@ export default function Home() {
               {
                 icon: Tag,
                 title: "Custom Tags",
-                desc: "Organize highlights with color-coded tags. Filter your compendium by any tag combination.",
+                desc: "Organize highlights with color-coded tags. Filter your mind palace by any tag combination.",
               },
               {
                 icon: BookOpen,
@@ -131,7 +132,7 @@ export default function Home() {
               {
                 icon: Download,
                 title: "Export to JSON or Markdown",
-                desc: "Download your entire compendium at any time in structured JSON or readable Markdown format.",
+                desc: "Download your entire mind palace at any time in structured JSON or readable Markdown format.",
               },
             ].map((f) => (
               <div
@@ -152,11 +153,11 @@ export default function Home() {
       {/* CTA */}
       <section className="py-24 px-6">
         <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Start building your compendium</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Start building your mind palace</h2>
           <p className="text-muted-foreground mb-8">Sign in to get your API key, install the extension, and start capturing knowledge from anywhere on the web.</p>
           {isAuthenticated ? (
-            <Button size="lg" onClick={() => navigate("/compendium")}>
-              Open My Compendium <ArrowRight className="w-4 h-4 ml-2" />
+            <Button size="lg" onClick={() => navigate("/mind-palace")}>
+              Open My Mind Palace <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           ) : (
             <Button size="lg" onClick={() => navigate("/login")}>
@@ -170,7 +171,7 @@ export default function Home() {
       <footer className="border-t border-border py-8 px-6 text-center text-sm text-muted-foreground">
         <div className="flex items-center justify-center gap-2 mb-2">
           <Highlighter className="w-4 h-4 text-primary" />
-          <span className="font-medium text-foreground">Highlight Compendium</span>
+          <span className="font-medium text-foreground">Mind Palace</span>
         </div>
         <p>Your personal knowledge capture tool</p>
       </footer>
