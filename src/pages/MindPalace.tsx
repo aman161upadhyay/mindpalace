@@ -175,7 +175,7 @@ function HighlightDetailModal({
     (async () => {
       try {
         setIsLoading(true);
-        const res = await fetch(`/api/highlights/${highlightId}`, { credentials: "include" });
+        const res = await fetch(`/api/highlights?id=${highlightId}`, { credentials: "include" });
         if (res.ok) {
           const data = await res.json();
           if (isMounted) setHighlight(data);
@@ -204,7 +204,7 @@ function HighlightDetailModal({
 
   const handleSave = async () => {
     setSaving(true);
-    await fetch(`/api/highlights/${highlightId}`, {
+    await fetch(`/api/highlights?id=${highlightId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -219,7 +219,7 @@ function HighlightDetailModal({
   const handleDelete = async () => {
     if (confirm("Delete this highlight? This cannot be undone.")) {
       setDeleting(true);
-      await fetch(`/api/highlights/${highlightId}`, { method: "DELETE", credentials: "include" });
+      await fetch(`/api/highlights?id=${highlightId}`, { method: "DELETE", credentials: "include" });
       setDeleting(false);
       onDeleted();
       toast.success("Highlight deleted");

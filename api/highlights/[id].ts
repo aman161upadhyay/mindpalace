@@ -12,8 +12,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const userId = await getAuthUserIdFromVercelReq(req);
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
-    const id = Number(req.query.id);
-    if (!id || isNaN(id)) return res.status(400).json({ error: "Invalid highlight ID" });
+    let id = Number(req.query.id);
+    if (!id || isNaN(id)) {
+      // Fallback: extract from URL manually in case Vercel rewrites stripped the path segment mapping
+      const pathPart = req.url?.split('?')[0].split('/').pop();
+      id = Number(pathPart);
+    }
+    
+    if (!id || isNaN(id)) return res.status(400).json({ error: `Invalid highlight ID: ${req.url}` });
 
     if (req.method === "GET") {
       const existing = await db
