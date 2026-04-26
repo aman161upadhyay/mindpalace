@@ -8,23 +8,21 @@ export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
 
-  // Navigate in useEffect to avoid calling setState during render
+  // Removed auto-redirect so user can see the landing page
   useEffect(() => {
-    if (!loading && isAuthenticated) {
-      navigate("/mind-palace");
-    }
-  }, [loading, isAuthenticated, navigate]);
+    // Navigation is handled via buttons now
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-hidden relative">
       <div className="noise-overlay"></div>
       {/* Nav */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 border-b border-border/50 bg-background/80 backdrop-blur-xl">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/")}>
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
             <Highlighter className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span className="font-semibold text-foreground tracking-tight">Mind Palace</span>
+          <span className="font-semibold text-foreground tracking-tight hover:text-primary transition-colors">Mind Palace</span>
         </div>
         <div className="flex items-center gap-3">
           {loading ? null : isAuthenticated ? (

@@ -171,12 +171,22 @@ function HighlightDetailModal({
   const [isEditingText, setIsEditingText] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
     (async () => {
-      setIsLoading(true);
-      const res = await fetch(`/api/highlights/${highlightId}`, { credentials: "include" });
-      if (res.ok) setHighlight(await res.json());
-      setIsLoading(false);
+      try {
+        setIsLoading(true);
+        const res = await fetch(`/api/highlights/${highlightId}`, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) setHighlight(data);
+        }
+      } catch (err) {
+        console.error("Failed to load highlight:", err);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
     })();
+    return () => { isMounted = false; };
   }, [highlightId]);
 
   if (highlight && !initialized) {
@@ -655,11 +665,11 @@ export default function MindPalace() {
       <aside className="w-64 shrink-0 border-r border-border bg-sidebar flex flex-col h-screen sticky top-0">
         {/* Logo */}
         <div className="p-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
+          <div className="flex items-center gap-2 cursor-pointer group" onClick={() => navigate("/")}>
+            <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center group-hover:scale-105 transition-transform">
               <Highlighter className="w-3.5 h-3.5 text-primary-foreground" />
             </div>
-            <span className="font-semibold text-sm tracking-tight">Mind Palace</span>
+            <span className="font-semibold text-sm tracking-tight group-hover:text-primary transition-colors">Mind Palace</span>
           </div>
         </div>
 
