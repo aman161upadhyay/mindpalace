@@ -152,12 +152,14 @@ function HighlightDetailModal({
   onClose,
   onUpdated,
   onDeleted,
+  onTagCreated,
 }: {
   highlightId: number;
   tags: { id: number; name: string; color: string }[];
   onClose: () => void;
   onUpdated: () => void;
   onDeleted: () => void;
+  onTagCreated: () => void;
 }) {
   const [highlight, setHighlight] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -169,6 +171,8 @@ function HighlightDetailModal({
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [isEditingText, setIsEditingText] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const [creatingTag, setCreatingTag] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -225,6 +229,28 @@ function HighlightDetailModal({
       toast.success("Highlight deleted");
       onClose();
     }
+  };
+
+  const handleCreateTag = async () => {
+    if (!newTagName.trim()) return;
+    setCreatingTag(true);
+    const color = TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)];
+    const res = await fetch("/api/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ name: newTagName.trim(), color }),
+    });
+    if (res.ok) {
+      const newTag = await res.json();
+      onTagCreated();
+      setSelectedTagIds(prev => [...prev, newTag.id]);
+      setNewTagName("");
+      toast.success("Tag created successfully");
+    } else {
+      toast.error("Failed to create tag");
+    }
+    setCreatingTag(false);
   };
 
   return (
@@ -324,18 +350,40 @@ function HighlightDetailModal({
 
                   <div className="space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Tags</p>
-                    <div className="flex flex-wrap gap-2 p-4 rounded-2xl bg-secondary/30 border border-border/50 min-h-[60px]">
-                      {tags.map((t) => (
-                        <TagChip
-                          key={t.id}
-                          tag={t}
-                          selected={selectedTagIds.includes(t.id)}
-                          onClick={() => toggleTag(t.id)}
+                    <div className="flex flex-col gap-3 p-4 rounded-2xl bg-secondary/30 border border-border/50 min-h-[60px]">
+                      <div className="flex flex-wrap gap-2">
+                        {tags.map((t) => (
+                          <TagChip
+                            key={t.id}
+                            tag={t}
+                            selected={selectedTagIds.includes(t.id)}
+                            onClick={() => toggleTag(t.id)}
+                          />
+                        ))}
+                        {tags.length === 0 && (
+                          <p className="text-xs text-muted-foreground self-center">No tags yet.</p>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center gap-2 mt-1">
+                        <Input
+                          value={newTagName}
+                          onChange={(e) => setNewTagName(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && handleCreateTag()}
+                          placeholder="Type a new tag & press Enter..."
+                          className="h-8 text-xs bg-background/50 border-border/50 focus-visible:ring-1 focus-visible:ring-primary/30"
+                          disabled={creatingTag}
                         />
-                      ))}
-                      {tags.length === 0 && (
-                        <p className="text-xs text-muted-foreground self-center">No tags yet. Create tags in Settings.</p>
-                      )}
+                        <Button 
+                          size="sm" 
+                          variant="secondary" 
+                          className="h-8 px-3 text-xs"
+                          onClick={handleCreateTag}
+                          disabled={!newTagName.trim() || creatingTag}
+                        >
+                          {creatingTag ? <Loader2 className="w-3 h-3 animate-spin" /> : "Add"}
+                        </Button>
+                      </div>
                     </div>
                   </div>
 
@@ -922,6 +970,7 @@ export default function MindPalace() {
           onClose={() => setSelectedHighlightId(null)}
           onUpdated={() => fetchHighlights()}
           onDeleted={() => fetchHighlights()}
+          onTagCreated={() => fetchTags()}
         />
       )}
       {showExport && <ExportModal onClose={() => setShowExport(false)} />}
