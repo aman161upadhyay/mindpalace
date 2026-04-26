@@ -244,9 +244,21 @@ function HighlightDetailModal({
     if (res.ok) {
       const newTag = await res.json();
       onTagCreated();
-      setSelectedTagIds(prev => [...prev, newTag.id]);
+      
+      const updatedTagIds = [...selectedTagIds, newTag.id];
+      setSelectedTagIds(updatedTagIds);
       setNewTagName("");
-      toast.success("Tag created successfully");
+      
+      // Auto-save the highlight to attach the tag immediately
+      await fetch(`/api/highlights?id=${highlightId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ tagIds: updatedTagIds }),
+      });
+      onUpdated();
+      
+      toast.success("Tag created & attached");
     } else {
       toast.error("Failed to create tag");
     }
