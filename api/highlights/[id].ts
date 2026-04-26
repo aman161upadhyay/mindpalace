@@ -26,12 +26,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === "PATCH") {
-      const { notes, tagIds } = req.body ?? {};
+      const { notes, tagIds, text } = req.body ?? {};
       if (notes !== undefined && (typeof notes !== "string" || notes.length > 100000)) {
         return res.status(400).json({ error: "Notes must be a string of 100,000 characters or fewer" });
       }
+      if (text !== undefined && (typeof text !== "string" || text.length === 0 || text.length > 50000)) {
+        return res.status(400).json({ error: "Text must be a valid string of 50,000 characters or fewer" });
+      }
+
       const updateData: Record<string, unknown> = { updatedAt: new Date() };
       if (notes !== undefined) updateData.notes = notes;
+      if (text !== undefined) updateData.text = text;
       if (tagIds !== undefined) {
         if (!Array.isArray(tagIds) || !tagIds.every((t) => typeof t === "number" && Number.isInteger(t) && t > 0)) {
           return res.status(400).json({ error: "tagIds must be an array of positive integers" });
