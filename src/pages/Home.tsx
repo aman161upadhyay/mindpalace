@@ -214,28 +214,28 @@ export default function Home() {
               return (
                 <div
                   key={i}
-                  className={`w-full max-w-md ${offsets[i]} rounded-2xl border border-border/60 bg-card/70 backdrop-blur-sm p-7 shadow-lg`}
-                  style={{ transform: `rotate(${rotations[i]}deg)` }}
+                  className={`w-full max-w-md ${offsets[i]} rounded-2xl border border-[#e8dfc8] p-7 shadow-lg`}
+                  style={{ transform: `rotate(${rotations[i]}deg)`, backgroundColor: "#f5f0e3" }}
                 >
                   <span
-                    className="inline-block text-[10px] uppercase tracking-widest text-primary border border-primary/30 rounded-full px-2.5 py-0.5 mb-5"
-                    style={{ fontFamily: '"JetBrains Mono", monospace' }}
+                    className="inline-block text-[10px] uppercase tracking-widest border rounded-full px-2.5 py-0.5 mb-5"
+                    style={{ fontFamily: '"JetBrains Mono", monospace', color: "#4e6a57", borderColor: "#4e6a5750" }}
                   >
                     {spark.label}
                   </span>
                   <p
-                    className="text-base text-foreground leading-relaxed mb-5"
-                    style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
+                    className="text-base leading-relaxed mb-5"
+                    style={{ fontFamily: '"IM Fell English", Georgia, serif', color: "#1c1b1a" }}
                   >
                     &ldquo;
-                    <span className="underline decoration-primary decoration-2 underline-offset-3">
+                    <span className="underline decoration-2 underline-offset-3" style={{ textDecorationColor: "#4e6a57" }}>
                       {spark.quote}
                     </span>
                     &rdquo;
                   </p>
                   <p
-                    className="text-xs text-muted-foreground"
-                    style={{ fontFamily: '"JetBrains Mono", monospace' }}
+                    className="text-xs"
+                    style={{ fontFamily: '"JetBrains Mono", monospace', color: "#7a6f5e" }}
                   >
                     — {spark.author}
                   </p>
