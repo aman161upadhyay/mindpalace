@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { ArrowLeft, Mail, Linkedin, MessageCircle } from "lucide-react";
+import { ArrowLeft, Mail, ExternalLink, MessageCircle } from "lucide-react";
 
 export default function Contact() {
   const [, navigate] = useLocation();
@@ -75,7 +75,7 @@ export default function Contact() {
                 className="flex items-center gap-3 text-sm text-foreground/80 hover:text-primary transition-colors group"
               >
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                  <Linkedin className="w-4 h-4 text-primary" />
+                  <ExternalLink className="w-4 h-4 text-primary" />
                 </div>
                 linkedin.com/in/amanupadhyay
               </a>
