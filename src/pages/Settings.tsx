@@ -11,6 +11,7 @@ import {
   Key,
   Loader2,
   LogOut,
+  Mail,
   Moon,
   Plus,
   Send,
@@ -175,6 +176,40 @@ export default function Settings() {
   const { tokens, loading: tokensLoading, createToken, deleteToken } = useTokens();
   const [creating, setCreating] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [dailyEmail, setDailyEmail] = useState(true);
+  const [dailyEmailSaving, setDailyEmailSaving] = useState(false);
+
+  // Sync dailyEmail state from user data
+  useEffect(() => {
+    if (user && 'dailyEmailEnabled' in user) {
+      setDailyEmail((user as any).dailyEmailEnabled ?? true);
+    }
+  }, [user]);
+
+  const toggleDailyEmail = async () => {
+    const newValue = !dailyEmail;
+    setDailyEmail(newValue);
+    setDailyEmailSaving(true);
+    try {
+      const res = await fetch("/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ dailyEmailEnabled: newValue }),
+      });
+      if (res.ok) {
+        toast.success(newValue ? "Daily highlights email enabled" : "Daily highlights email disabled");
+      } else {
+        setDailyEmail(!newValue); // revert
+        toast.error("Failed to update preference");
+      }
+    } catch {
+      setDailyEmail(!newValue); // revert
+      toast.error("Network error");
+    } finally {
+      setDailyEmailSaving(false);
+    }
+  };
 
   const copyToken = (token: string, id: number) => {
     navigator.clipboard.writeText(token);
@@ -320,11 +355,44 @@ export default function Settings() {
               </div>
               <button
                 onClick={toggleTheme}
-                className="relative w-12 h-7 rounded-full bg-secondary border border-border transition-colors"
+                className="relative w-14 h-7 rounded-full bg-secondary border border-border transition-colors shrink-0"
               >
                 <span
-                  className={`absolute top-0.5 w-6 h-6 rounded-full bg-primary transition-transform ${
-                    theme === "light" ? "translate-x-5" : "translate-x-0.5"
+                  className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-primary transition-transform ${
+                    theme === "light" ? "translate-x-7" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Daily Email Highlights */}
+        <section>
+          <h2 className="text-lg font-semibold mb-4">Daily Highlights Email</h2>
+          <div className="p-4 rounded-xl bg-card border border-border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Mail className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="font-medium">
+                    {dailyEmail ? "Enabled" : "Disabled"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Receive 5 random highlights in your inbox every morning
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={toggleDailyEmail}
+                disabled={dailyEmailSaving}
+                className={`relative w-14 h-7 rounded-full border border-border transition-colors shrink-0 ${
+                  dailyEmail ? "bg-primary/20" : "bg-secondary"
+                } ${dailyEmailSaving ? "opacity-50" : ""}`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-primary transition-transform ${
+                    dailyEmail ? "translate-x-7" : "translate-x-0"
                   }`}
                 />
               </button>
@@ -554,19 +622,34 @@ export default function Settings() {
             <p className="text-sm text-muted-foreground mb-4">
               Once the extension is installed, select any text on any webpage and press:
             </p>
-            <div className="flex items-center gap-2 text-sm">
-              <kbd className="px-3 py-1.5 rounded-lg bg-secondary border border-border font-mono text-sm font-medium">
-                Ctrl
-              </kbd>
-              <span className="text-muted-foreground">+</span>
-              <kbd className="px-3 py-1.5 rounded-lg bg-secondary border border-border font-mono text-sm font-medium">
-                Shift
-              </kbd>
-              <span className="text-muted-foreground">+</span>
-              <kbd className="px-3 py-1.5 rounded-lg bg-secondary border border-border font-mono text-sm font-medium">
-                S
-              </kbd>
-              <span className="text-muted-foreground ml-2">to save the highlighted text</span>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <div className="flex items-center gap-2">
+                <kbd className="px-3 py-1.5 rounded-lg bg-secondary border border-border font-mono text-sm font-medium">
+                  Ctrl
+                </kbd>
+                <span className="text-muted-foreground">+</span>
+                <kbd className="px-3 py-1.5 rounded-lg bg-secondary border border-border font-mono text-sm font-medium">
+                  Shift
+                </kbd>
+                <span className="text-muted-foreground">+</span>
+                <kbd className="px-3 py-1.5 rounded-lg bg-secondary border border-border font-mono text-sm font-medium">
+                  S
+                </kbd>
+              </div>
+              <span className="text-muted-foreground text-xs">or</span>
+              <div className="flex items-center gap-2">
+                <kbd className="px-3 py-1.5 rounded-lg bg-secondary border border-border font-mono text-sm font-medium">
+                  ⌘
+                </kbd>
+                <span className="text-muted-foreground">+</span>
+                <kbd className="px-3 py-1.5 rounded-lg bg-secondary border border-border font-mono text-sm font-medium">
+                  Shift
+                </kbd>
+                <span className="text-muted-foreground">+</span>
+                <kbd className="px-3 py-1.5 rounded-lg bg-secondary border border-border font-mono text-sm font-medium">
+                  S
+                </kbd>
+              </div>
             </div>
             <p className="text-xs text-muted-foreground mt-3">
               A confirmation tooltip will appear briefly to confirm the save. The highlight will

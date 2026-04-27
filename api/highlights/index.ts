@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { and, desc, eq, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, like, or, sql } from "drizzle-orm";
 import { db } from "../../src/lib/db";
 import { highlights, tags } from "../../src/schema";
 import { getAuthUserIdFromVercelReq } from "../../src/lib/auth";
@@ -33,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (req.method === "PATCH") {
         const { notes, tagIds, text } = req.body ?? {};
-        if (notes !== undefined && (typeof notes !== "string" || notes.length > 100000)) {
+        if (notes !== undefined && notes !== null && (typeof notes !== "string" || notes.length > 100000)) {
           return res.status(400).json({ error: "Notes must be a string of 100,000 characters or fewer" });
         }
         if (text !== undefined && (typeof text !== "string" || text.length === 0 || text.length > 50000)) {
@@ -155,10 +155,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const pattern = `%${escapedSearch}%`;
         conditions.push(
           or(
-            like(highlights.text, pattern),
-            like(highlights.pageTitle, pattern),
-            like(highlights.notes, pattern),
-            like(highlights.domain, pattern)
+            ilike(highlights.text, pattern),
+            ilike(highlights.pageTitle, pattern),
+            ilike(highlights.notes, pattern),
+            ilike(highlights.domain, pattern)
           )!
         );
       }

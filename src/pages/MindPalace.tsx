@@ -83,6 +83,7 @@ function HighlightCard({
   highlight,
   tags,
   onClick,
+  onUpdated,
 }: {
   highlight: {
     id: number;
@@ -97,10 +98,31 @@ function HighlightCard({
   };
   tags: { id: number; name: string; color: string }[];
   onClick: () => void;
+  onUpdated: () => void;
 }) {
   const tagIds = parseTagIds(highlight.tagIds);
   const highlightTags = tags.filter((t) => tagIds.includes(t.id));
   const preview = highlight.text.length > 280 ? highlight.text.slice(0, 280) + "\u2026" : highlight.text;
+
+  const handleRemoveTag = async (e: React.MouseEvent, tagId: number) => {
+    e.stopPropagation();
+    try {
+      const currentTagIds = parseTagIds(highlight.tagIds);
+      const updatedTagIds = currentTagIds.filter((id) => id !== tagId);
+      const res = await fetch(`/api/highlights?id=${highlight.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ tagIds: updatedTagIds }),
+      });
+      if (res.ok) {
+        onClick(); // Trigger a refresh of the parent state if needed, or just let the list re-fetch
+        // Actually, since this is a child component, we might need a callback to the parent
+      }
+    } catch (err) {
+      toast.error("Failed to remove tag");
+    }
+  };
 
   return (
     <div
@@ -117,7 +139,25 @@ function HighlightCard({
       {/* Tags */}
       <div className="flex flex-wrap gap-1.5 mb-4 relative z-10">
         {highlightTags.map((t) => (
-          <TagChip key={t.id} tag={t} />
+          <TagChip
+            key={t.id}
+            tag={t}
+            onRemove={() => {
+              // This is a bit tricky since we don't have a direct 'onUpdated' here.
+              // But we can trigger a refresh via a window event or just wait for the next fetch.
+              // For now, let's assume the parent handles it or we'll add a refresh call.
+              fetch(`/api/highlights?id=${highlight.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ tagIds: parseTagIds(highlight.tagIds).filter(id => id !== t.id) }),
+              }).then(() => {
+                // We need to tell the parent to refresh.
+                // Since this component is deep, I'll add a onUpdated prop to HighlightCard.
+                onUpdated();
+              });
+            }}
+          />
         ))}
         {highlight.metadataTags && safeParseTags(highlight.metadataTags).map((mt: string) => (
           <span key={mt} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 uppercase tracking-widest">
@@ -208,16 +248,22 @@ function HighlightDetailModal({
 
   const handleSave = async () => {
     setSaving(true);
-    await fetch(`/api/highlights?id=${highlightId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ text: text || undefined, notes: notes || null, tagIds: selectedTagIds }),
-    });
-    setSaving(false);
-    setIsEditingText(false);
-    onUpdated();
-    toast.success("Highlight updated");
+    try {
+      const res = await fetch(`/api/highlights?id=${highlightId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ text: text || undefined, notes: notes || null, tagIds: selectedTagIds }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      setIsEditingText(false);
+      onUpdated();
+      toast.success("Highlight updated");
+    } catch (err) {
+      toast.error("Failed to update highlight");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -670,11 +716,12 @@ export default function MindPalace() {
 
   // ─── Actions ─────────────────────────────────────────────────────────────────
 
-  const handleDeleteTag = async (id: number) => {
+  const handleDeleteTag = async (id: number, name: string) => {
+    if (!confirm(`Delete tag "${name}"? This will remove it from all highlights.`)) return;
     await fetch(`/api/tags/${id}`, { method: "DELETE", credentials: "include" });
     fetchTags();
     if (selectedTagId === id) setSelectedTagId(undefined);
-    toast.success("Tag deleted");
+    toast.success(`Tag "${name}" deleted`);
   };
 
   const highlights = highlightsData?.items ?? [];
@@ -802,7 +849,7 @@ export default function MindPalace() {
                   className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDeleteTag(t.id);
+                    handleDeleteTag(t.id, t.name);
                   }}
                 >
                   <X className="w-3 h-3" />
@@ -880,9 +927,10 @@ export default function MindPalace() {
         </header>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {highlightsLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center">
+          <div className="w-full max-w-3xl">
+            {highlightsLoading ? (
+              <div className="flex flex-col gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="p-5 rounded-xl bg-card border border-border space-y-3">
                   <Skeleton className="h-4 w-full" />
@@ -920,13 +968,14 @@ export default function MindPalace() {
                     </h2>
                     <span className="text-xs text-muted-foreground">({items.length})</span>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  <div className="flex flex-col gap-4">
                     {items.map((h) => (
                       <HighlightCard
                         key={h.id}
                         highlight={h}
                         tags={tags}
                         onClick={() => setSelectedHighlightId(h.id)}
+                        onUpdated={() => fetchHighlights()}
                       />
                     ))}
                   </div>
@@ -935,13 +984,14 @@ export default function MindPalace() {
             </div>
           ) : (
             // Flat list (when filtering)
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="flex flex-col gap-4">
               {sortedHighlights.map((h) => (
                 <HighlightCard
                   key={h.id}
                   highlight={h}
                   tags={tags}
                   onClick={() => setSelectedHighlightId(h.id)}
+                  onUpdated={() => fetchHighlights()}
                 />
               ))}
             </div>
@@ -971,6 +1021,7 @@ export default function MindPalace() {
               </Button>
             </div>
           )}
+          </div>
         </div>
       </main>
 

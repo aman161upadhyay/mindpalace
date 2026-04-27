@@ -131,8 +131,8 @@ async function handleGetRecent() {
     if (!apiToken) return [];
     
     const response = await fetch(
-      `${dashboardUrl}/api/extension/recent?apiToken=${encodeURIComponent(apiToken)}`,
-      { method: "GET" }
+      `${dashboardUrl}/api/extension/recent`,
+      { method: "GET", headers: { "Authorization": `Bearer ${apiToken}` } }
     );
     if (!response.ok) return [];
     return await response.json();

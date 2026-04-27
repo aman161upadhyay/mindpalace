@@ -54,7 +54,7 @@ New route rendered by `src/pages/Contact.tsx`. Minimal, centered layout. Content
 
 - Name: **Aman Upadhyay**
 - Title: MBA Candidate 2027, Harvard Business School
-- 2-line bio: *"Builder at the intersection of technology and human systems. Previously in medtech and healthcare AI."*
+- 2-line bio: *"AI builder at the intersection of Business and Technology. SME in ML/AI and Data Science. 2x Founder."*
 - Email: [aupadhyay@mba2027.hbs.edu](mailto:aupadhyay@mba2027.hbs.edu)
 - LinkedIn: [linkedin.com/in/amanupadhyay](https://www.linkedin.com/in/amanupadhyay/)
 - WhatsApp: `+13128267339` (link: `https://wa.me/13128267339`)
@@ -89,19 +89,26 @@ Add `/contact` and `/home-b` to `src/App.tsx`:
   - Author in JetBrains Mono, small, muted
   - Labeled with "spark" or "soul note" or "relic" in small moss green pill badge
 - Sample quotes:
-  1. *"The more you know, the more you realize you don't know."* — Aristotle · **spark**
-  2. *"We do not read to escape life, but for life not to escape us."* — Anonymous · **soul note**
+  1. *"Success brings an assymetry, you now have more to lose than to gain. You are hence fragile."* — Nassim N Taleb · **spark**
+  2. *"LLMs are structurally biased toward action. Due to Reinforcement Learning from Human Feedback (RLHF), they are "eager to please" and will rush to generate artifacts (code, plans) before mapping the full design tree."* — Gemini Chat **marginalia**
   3. *"You are not a drop in the ocean. You are the entire ocean in a drop."* — Rumi · **relic**
 
 ### Daily 5 Section
 - Full-width block: `#1a2e22` (dark green) in both modes
 - Centered email card (white, `rounded-2xl`, `shadow-2xl`, ~`max-w-sm`)
 - Email card header: "Mind Palace · Daily Sparks" in mono, small
-- Inside card: 5 spark preview rows, each with a truncated quote and a dot separator
+- Inside card: 5 spark preview rows, each with a truncated quote and a dot separator. The 5 sparks to display (truncated to ~80 chars in the UI):
+  1. *"The MCP is an open protocol designed specifically to bridge the critical gap between isolated, generalized AI models and highly dynamic, real-world, proprietary data environments..."* — Planhat
+  2. *"It is true that intrinsic valuation, at least in its discounted cash flow avatar, is much easier to do at companies that have many years of historical data..."* — Aswath Damodaran
+  3. *"Since the simulation is centered on the same expected values for inputs as I used in my base case, it should come as no surprise that the median value, across ten thousand simulations, of $1.29 trillion is close to the base case valuation..."* — Aswath Damodaran
+  4. *"Existential nihilism asserts that life has no objective meaning or purpose. The idea that all individual and societal values are ultimately pointless has been associated with various responses..."*
+  5. *"Before World War I, Europe had a naturally integrated capital market. An investor in London could easily finance a railway in the Balkans or an industrial plant in Germany..."*
 - **Animation:** rows scroll upward in a continuous loop (`@keyframes scroll-up`), giving the feel of an inbox arriving
 - Heading above card: *"5 sparks. Every morning."* — Playfair Display, white
 - Subline: *"Your relics, revisited daily. A gentle nudge from your past self."*
 - Feature pills below: `✦ 5 random marginalia` · `✦ Privacy first` · `✦ Unsubscribe anytime`
+
+
 
 ### Footer
 - Single centered row

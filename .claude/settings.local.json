@@ -14,7 +14,10 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "WebFetch(domain:mindpalace-bice.vercel.app)",
-      "Bash(npx vercel:*)"
+      "Bash(npx vercel:*)",
+      "Bash(powershell -Command \"Add-Type -AssemblyName 'System.Text'; \\\\$bytes = [System.IO.File]::ReadAllBytes\\('M:\\\\\\\\Critical\\\\\\\\2602_AmanUpadhyay_TResumeHBS.pdf'\\); \\\\$text = [System.Text.Encoding]::UTF8.GetString\\(\\\\$bytes\\); \\\\$text -replace '[^\\\\x20-\\\\x7E\\\\n]', ' ' | Select-String -Pattern '\\(linkedin|email|phone|gmail|@|whatsapp|\\\\+1|\\\\+91|aman\\)' -CaseSensitive:\\\\$false | Select-Object -First 30\")",
+      "Bash(powershell -Command \"& { \\\\$content = Get-Content 'M:\\\\\\\\Critical\\\\\\\\2602_AmanUpadhyay_TResumeHBS.pdf' -Raw -Encoding Byte | ForEach-Object { [char]\\\\$_ } | Join-String; \\\\$matches = [regex]::Matches\\(\\\\$content, '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\\\\\\\.[a-zA-Z]{2,}'\\); \\\\$matches | Select-Object -First 10 }\")",
+      "Bash(npm run:*)"
     ]
   }
 }

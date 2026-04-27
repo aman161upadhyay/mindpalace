@@ -6,8 +6,8 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Home from "./pages/Home";
-import HomeB from "./pages/HomeB";
 import Contact from "./pages/Contact";
+import Privacy from "./pages/Privacy";
 import MindPalace from "./pages/MindPalace";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
@@ -32,8 +32,8 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/home-b" component={HomeB} />
       <Route path="/contact" component={Contact} />
+      <Route path="/privacy" component={Privacy} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/forgot-password" component={ForgotPassword} />

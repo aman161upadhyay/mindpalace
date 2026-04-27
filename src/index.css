@@ -257,3 +257,10 @@
 [data-theme="light"] .landing-glow {
   background: radial-gradient(circle, rgba(46, 64, 54, 0.08) 0%, transparent 70%);
 }
+
+/* Text scramble effect — used by ScrambledTitle */
+.dud {
+  color: #4e6a57;
+  opacity: 0.85;
+  font-family: "JetBrains Mono", monospace;
+}
