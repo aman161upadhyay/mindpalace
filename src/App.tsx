@@ -6,15 +6,17 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Home from "./pages/Home";
+import HomeB from "./pages/HomeB";
+import Contact from "./pages/Contact";
 import MindPalace from "./pages/MindPalace";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
 import { Loader2 } from "lucide-react";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, loading } = useAuth();
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -22,11 +24,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
       </div>
     );
   }
-
-  if (!isAuthenticated) {
-    return <Redirect to="/login" />;
-  }
-
+  if (!isAuthenticated) return <Redirect to="/login" />;
   return <Component />;
 }
 
@@ -34,8 +32,11 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/home-b" component={HomeB} />
+      <Route path="/contact" component={Contact} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/mind-palace">
         <ProtectedRoute component={MindPalace} />
       </Route>

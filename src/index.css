@@ -1,8 +1,9 @@
 @import "tailwindcss";
 /* @import "tw-animate-css"; */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:wght@700;800;900&display=swap");
 
 @custom-variant dark (&:is([data-theme="dark"] *));
+@custom-variant light (&:is([data-theme="light"] *));
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -96,7 +97,7 @@
   --secondary: #e2ddd3;
   --secondary-foreground: #4a4744;
   --muted: #e2ddd3;
-  --muted-foreground: #827c75;
+  --muted-foreground: #5a5f5c;
   --accent: #2e4036;
   --accent-foreground: #eae6df;
   --destructive: #dc2626;
@@ -228,4 +229,31 @@
       max-width: 1280px; /* Standard content width */
     }
   }
+}
+
+/* ─── Landing Page Animations ─── */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes scroll-up {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+
+/* Moss green radial glow — used in dark mode hero */
+.landing-glow {
+  position: absolute;
+  width: 640px;
+  height: 640px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(78, 106, 87, 0.18) 0%, transparent 70%);
+  filter: blur(60px);
+  pointer-events: none;
+}
+
+/* Light-mode glow is subtler */
+[data-theme="light"] .landing-glow {
+  background: radial-gradient(circle, rgba(46, 64, 54, 0.08) 0%, transparent 70%);
 }
