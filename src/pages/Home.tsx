@@ -137,15 +137,15 @@ export default function Home() {
         <div className="relative z-10 w-16 h-px bg-primary/40 mb-12" />
 
         {/* Typing animation */}
-        <div className="relative z-10 mb-10 w-full max-w-2xl">
+        <div className="relative z-10 mb-10 w-full max-w-5xl">
           {/* Line 1: cursor fixed at left, text grows right */}
           <div className="flex items-center justify-start gap-2 mb-3">
             <span
-              className="w-0.5 h-10 md:h-14 bg-primary shrink-0"
+              className="w-0.5 h-8 md:h-12 bg-primary shrink-0"
               style={{ animation: "cursor-blink 0.8s ease-in-out infinite" }}
             />
             <span
-              className="text-4xl md:text-6xl font-bold text-foreground leading-none text-left"
+              className="text-3xl md:text-5xl font-bold text-foreground leading-none text-left whitespace-nowrap"
               style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
             >
               {text1}
@@ -153,15 +153,15 @@ export default function Home() {
           </div>
 
           {/* Line 2: cursor fixed at right, text grows left */}
-          <div className="flex items-center justify-end gap-2 pl-8">
+          <div className="flex items-center justify-end gap-2">
             <span
-              className="text-4xl md:text-6xl font-bold text-muted-foreground leading-none text-right"
+              className="text-3xl md:text-5xl font-bold text-muted-foreground leading-none text-right whitespace-nowrap"
               style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
             >
               {text2}
             </span>
             <span
-              className="w-0.5 h-10 md:h-14 bg-primary/60 shrink-0"
+              className="w-0.5 h-8 md:h-12 bg-primary/60 shrink-0"
               style={{ animation: "cursor-blink 0.8s ease-in-out infinite 0.4s" }}
             />
           </div>
@@ -171,7 +171,7 @@ export default function Home() {
           className="relative z-10 text-xs uppercase tracking-widest text-primary/70 mb-12 transition-opacity duration-700"
           style={{ fontFamily: '"JetBrains Mono", monospace', opacity: done ? 1 : 0 }}
         >
-          Capture marginalia · Collect sparks · Build your relics
+          Capture marginalia · Dig up relics of your past · Ignite sparks
         </p>
 
         <div className="relative z-10 transition-opacity duration-700" style={{ opacity: done ? 1 : 0 }}>

@@ -122,26 +122,26 @@ export default function HomeB() {
             {/* Line 1: cursor at left, text grows right */}
             <div className="flex items-center gap-2 mb-3">
               <span
-                className="w-0.5 h-10 md:h-12 bg-primary shrink-0"
+                className="w-0.5 h-8 md:h-10 bg-primary shrink-0"
                 style={{ animation: "cursor-blink 0.8s ease-in-out infinite" }}
               />
               <span
-                className="text-3xl md:text-5xl font-bold text-foreground leading-tight"
+                className="text-2xl md:text-4xl font-bold text-foreground leading-none whitespace-nowrap"
                 style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
               >
                 {text1}
               </span>
             </div>
             {/* Line 2: cursor at right, text grows left */}
-            <div className="flex items-center gap-2 pl-6">
+            <div className="flex items-center gap-2">
               <span
-                className="text-3xl md:text-5xl font-bold text-muted-foreground leading-tight"
+                className="text-2xl md:text-4xl font-bold text-muted-foreground leading-none whitespace-nowrap"
                 style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
               >
                 {text2}
               </span>
               <span
-                className="w-0.5 h-10 md:h-12 bg-primary/60 shrink-0"
+                className="w-0.5 h-8 md:h-10 bg-primary/60 shrink-0"
                 style={{ animation: "cursor-blink 0.8s ease-in-out infinite 0.4s" }}
               />
             </div>
