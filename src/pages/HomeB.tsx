@@ -206,28 +206,45 @@ export default function HomeB() {
             {SPARKS.map((spark, i) => (
               <div
                 key={i}
-                className="rounded-2xl border border-[#e8dfc8] p-6 shadow-md"
-                style={{ backgroundColor: "#f5f0e3" }}
+                className="rounded-sm p-6"
+                style={{
+                  backgroundColor: "#f2e8c9",
+                  backgroundImage: [
+                    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.09'/%3E%3C/svg%3E\")",
+                    "radial-gradient(ellipse at top left, rgba(160,110,40,0.18) 0%, transparent 55%)",
+                    "radial-gradient(ellipse at bottom right, rgba(140,95,30,0.14) 0%, transparent 55%)",
+                  ].join(", "),
+                  border: "1px solid #c9a96e",
+                  boxShadow: "inset 0 0 70px rgba(110,70,20,0.13), 0 6px 24px rgba(0,0,0,0.28)",
+                }}
               >
                 <span
                   className="inline-block text-[10px] uppercase tracking-widest border rounded-full px-2.5 py-0.5 mb-5"
-                  style={{ fontFamily: '"JetBrains Mono", monospace', color: "#4e6a57", borderColor: "#4e6a5750" }}
+                  style={{ fontFamily: '"JetBrains Mono", monospace', color: "#5a7a62", borderColor: "rgba(90,122,98,0.35)" }}
                 >
                   {spark.label}
                 </span>
                 <p
-                  className="text-sm leading-relaxed mb-4"
-                  style={{ fontFamily: '"IM Fell English", Georgia, serif', color: "#1c1b1a" }}
+                  className="mb-4"
+                  style={{
+                    fontFamily: '"IM Fell English", Georgia, serif',
+                    fontStyle: "italic",
+                    fontSize: "0.95rem",
+                    lineHeight: "1.85",
+                    color: "#1a0e06",
+                    textShadow: "0.4px 0.4px 0px rgba(26,14,6,0.45), 0 0 1.5px rgba(26,14,6,0.18)",
+                    letterSpacing: "0.01em",
+                  }}
                 >
-                  &ldquo;
-                  <span className="underline decoration-2 underline-offset-3" style={{ textDecorationColor: "#4e6a57" }}>
-                    {spark.quote}
-                  </span>
-                  &rdquo;
+                  &ldquo;{spark.quote}&rdquo;
                 </p>
                 <p
-                  className="text-xs"
-                  style={{ fontFamily: '"JetBrains Mono", monospace', color: "#7a6f5e" }}
+                  style={{
+                    fontFamily: '"IM Fell English", Georgia, serif',
+                    fontSize: "0.8rem",
+                    color: "#5a3e20",
+                    textShadow: "0.3px 0.3px 0px rgba(90,62,32,0.4)",
+                  }}
                 >
                   — {spark.author}
                 </p>
