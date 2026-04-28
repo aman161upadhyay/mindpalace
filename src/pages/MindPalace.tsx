@@ -11,6 +11,8 @@ import {
   BookOpen,
   Calendar,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Download,
   ExternalLink,
   Globe,
@@ -632,6 +634,7 @@ export default function MindPalace() {
   const { user, isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
 
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedTagId, setSelectedTagId] = useState<number | undefined>();
@@ -761,7 +764,7 @@ export default function MindPalace() {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
-      <aside className="w-64 shrink-0 border-r border-border bg-sidebar flex flex-col h-screen sticky top-0">
+      <aside className={`shrink-0 border-r border-border bg-sidebar flex flex-col h-screen sticky top-0 transition-all duration-300 overflow-hidden ${sidebarOpen ? "w-64" : "w-0 border-r-0"}`}>
         {/* Logo */}
         <div className="p-4 border-b border-border">
           <div className="flex items-center gap-2 cursor-pointer group" onClick={() => navigate("/")}>
@@ -878,6 +881,13 @@ export default function MindPalace() {
         {/* Header */}
         <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border px-6 py-4">
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setSidebarOpen((o) => !o)}
+              className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              {sidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
