@@ -4,6 +4,7 @@ import { db } from "../../src/lib/db";
 import { highlights, tags } from "../../src/schema";
 import { getAuthUserIdFromVercelReq } from "../../src/lib/auth";
 import { applyCors } from "../../src/lib/cors";
+import { rateLimit, getClientIp } from "../../src/lib/rate-limit";
 import { inferTags } from "../../src/lib/keyword-tags";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -193,6 +194,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ── POST (create) ──────────────────────────────────────────────────────
     if (req.method === "POST") {
+      const ip = getClientIp(req.headers);
+      const { allowed } = rateLimit(ip, { windowMs: 60_000, max: 60 });
+      if (!allowed) return res.status(429).json({ error: "Too many requests, please try again later" });
       const { text, sourceUrl, pageTitle, domain } = req.body ?? {};
 
       if (!text || typeof text !== "string" || text.length === 0)
