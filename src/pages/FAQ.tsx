@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { Leaf, ChevronDown } from "lucide-react";
 
-const FAQS: { q: string; a: string | JSX.Element }[] = [
+const FAQS: { q: string; a: string | ReactNode }[] = [
   {
     q: "What is Mind Palace?",
     a: "Mind Palace is a personal knowledge tool that lets you save highlighted text from any webpage directly to your private account. Think of it as a digital margin — a place where everything you found worth remembering actually lives.",
@@ -111,7 +111,7 @@ const FAQS: { q: string; a: string | JSX.Element }[] = [
   },
 ];
 
-function FAQItem({ q, a }: { q: string; a: string | JSX.Element }) {
+function FAQItem({ q, a }: { q: string; a: string | ReactNode }) {
   const [open, setOpen] = useState(false);
 
   return (
