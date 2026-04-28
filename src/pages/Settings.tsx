@@ -16,6 +16,7 @@ import {
   Plus,
   Send,
   Sun,
+  Trash2,
   Wifi,
   WifiOff,
   Zap,
@@ -443,7 +444,7 @@ export default function Settings() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{t.label ?? "Chrome Extension"}</p>
                     <p className="text-xs font-mono text-muted-foreground truncate mt-0.5">
-                      {t.token}
+                      {t.token.slice(0, 10)}•••••••••••••{t.token.slice(-4)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Created {new Date(t.createdAt).toLocaleDateString()}
@@ -470,6 +471,13 @@ export default function Settings() {
                         <Send className="w-4 h-4 text-primary" />
                       </button>
                     )}
+                    <button
+                      className="w-8 h-8 rounded-md flex items-center justify-center hover:bg-destructive/15 transition-colors"
+                      onClick={() => deleteToken(t.id)}
+                      title="Delete token"
+                    >
+                      <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+                    </button>
                   </div>
                 </div>
               ))
