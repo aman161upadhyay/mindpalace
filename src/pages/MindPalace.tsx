@@ -891,7 +891,7 @@ export default function MindPalace() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search highlights, notes, sources\u2026"
+                placeholder="Search your highlights…"
                 value={search}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9 bg-secondary/50 border-border focus:border-primary/50"
