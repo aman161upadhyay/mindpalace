@@ -22,8 +22,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Username is required" });
     if (!email || typeof email !== "string" || email.length > 255)
       return res.status(400).json({ error: "Email is required" });
-    if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6 || newPassword.length > 1024)
-      return res.status(400).json({ error: "New password must be at least 6 characters" });
+    if (!newPassword || typeof newPassword !== "string" || newPassword.length < 8 || newPassword.length > 1024)
+      return res.status(400).json({ error: "New password must be at least 8 characters" });
 
     const trimmedUsername = username.trim().toLowerCase();
     const trimmedEmail = email.trim().toLowerCase();
@@ -36,12 +36,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .limit(1);
 
     if (found.length === 0) {
-      // Intentionally vague error to avoid leaking which accounts exist
-      return res.status(400).json({ error: "No account found matching that username and email combination" });
+      return res.status(400).json({ error: "Invalid credentials — please check your username and email" });
     }
 
     const user = found[0];
-    const newHash = await bcrypt.hash(newPassword, 10);
+    const newHash = await bcrypt.hash(newPassword, 12);
 
     await db
       .update(users)
