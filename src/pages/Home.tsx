@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Leaf, Menu, Moon, Settings, Sun, X as XIcon } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
