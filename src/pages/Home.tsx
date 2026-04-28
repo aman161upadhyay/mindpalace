@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Leaf, Moon, Sun } from "lucide-react";
+import { ArrowRight, Leaf, Menu, Moon, Sun, X as XIcon } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
   ScrambledOnce,
@@ -896,49 +896,88 @@ function LandingNav() {
   const { isAuthenticated } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [, navigate] = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-5 border-b border-border/40 bg-background/80 backdrop-blur-xl">
-      <button onClick={() => navigate("/")} className="flex items-center gap-2.5 group">
-        <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center group-hover:bg-primary/25 transition-colors">
-          <Leaf className="w-3.5 h-3.5 text-primary" />
+    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
+      <div className="flex items-center justify-between px-6 md:px-8 py-5">
+        {/* Logo */}
+        <button onClick={() => navigate("/")} className="flex items-center gap-2.5 group">
+          <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center group-hover:bg-primary/25 transition-colors">
+            <Leaf className="w-3.5 h-3.5 text-primary" />
+          </div>
+          <span
+            className="text-foreground font-semibold tracking-tight group-hover:text-primary transition-colors"
+            style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
+          >
+            Mind Palace
+          </span>
+        </button>
+
+        {/* Desktop nav */}
+        <div className="hidden md:flex items-center gap-4">
+          <button
+            onClick={() => navigate("/contact")}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Contact
+          </button>
+          <button
+            onClick={toggleTheme}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border/50 hover:border-border rounded-full px-3 h-7 transition-all"
+            style={{ fontFamily: '"JetBrains Mono", monospace' }}
+          >
+            {theme === "light" ? <Moon className="w-3 h-3" /> : <Sun className="w-3 h-3" />}
+            {theme === "light" ? "Dark" : "Light"}
+          </button>
+          {isAuthenticated ? (
+            <Button size="sm" onClick={() => navigate("/mind-palace")} className="rounded-full px-5 h-8 text-xs">
+              Open Mind Palace
+            </Button>
+          ) : (
+            <Button size="sm" onClick={() => navigate("/register")} className="rounded-full px-5 h-8 text-xs">
+              Create Account
+            </Button>
+          )}
         </div>
-        <span
-          className="text-foreground font-semibold tracking-tight group-hover:text-primary transition-colors"
-          style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
-        >
-          Mind Palace
-        </span>
-      </button>
 
-      <div className="flex items-center gap-4">
+        {/* Mobile hamburger */}
         <button
-          onClick={() => navigate("/contact")}
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="md:hidden w-8 h-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+          onClick={() => setMenuOpen((o) => !o)}
+          aria-label="Toggle menu"
         >
-          Contact
+          {menuOpen ? <XIcon className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
         </button>
-
-        {/* Theme toggle */}
-        <button
-          onClick={toggleTheme}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border/50 hover:border-border rounded-full px-3 h-7 transition-all"
-          style={{ fontFamily: '"JetBrains Mono", monospace' }}
-        >
-          {theme === "light" ? <Moon className="w-3 h-3" /> : <Sun className="w-3 h-3" />}
-          {theme === "light" ? "Dark" : "Light"}
-        </button>
-
-        {isAuthenticated ? (
-          <Button size="sm" onClick={() => navigate("/mind-palace")} className="rounded-full px-5 h-8 text-xs">
-            Open Mind Palace
-          </Button>
-        ) : (
-          <Button size="sm" onClick={() => navigate("/register")} className="rounded-full px-5 h-8 text-xs">
-            Create Account
-          </Button>
-        )}
       </div>
+
+      {/* Mobile dropdown */}
+      {menuOpen && (
+        <div className="md:hidden border-t border-border/40 bg-background/95 backdrop-blur-xl px-6 py-4 flex flex-col gap-3">
+          <button
+            onClick={() => { navigate("/contact"); setMenuOpen(false); }}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
+          >
+            Contact
+          </button>
+          <button
+            onClick={() => { toggleTheme(); setMenuOpen(false); }}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            {theme === "light" ? "Switch to Dark" : "Switch to Light"}
+          </button>
+          {isAuthenticated ? (
+            <Button size="sm" onClick={() => { navigate("/mind-palace"); setMenuOpen(false); }} className="rounded-full w-full">
+              Open Mind Palace
+            </Button>
+          ) : (
+            <Button size="sm" onClick={() => { navigate("/register"); setMenuOpen(false); }} className="rounded-full w-full">
+              Create Account
+            </Button>
+          )}
+        </div>
+      )}
     </nav>
   );
 }
