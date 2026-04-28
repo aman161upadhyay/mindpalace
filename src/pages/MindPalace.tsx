@@ -637,7 +637,8 @@ export default function MindPalace() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [selectedTagId, setSelectedTagId] = useState<number | undefined>();
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
+  const [selectedMetadataTags, setSelectedMetadataTags] = useState<string[]>([]);
   const [selectedDomain, setSelectedDomain] = useState<string | undefined>();
   const [selectedHighlightId, setSelectedHighlightId] = useState<number | null>(null);
   const [showExport, setShowExport] = useState(false);
@@ -667,7 +668,8 @@ export default function MindPalace() {
     try {
       const params = new URLSearchParams();
       if (debouncedSearch) params.set("search", debouncedSearch);
-      if (selectedTagId) params.set("tagId", String(selectedTagId));
+      if (selectedTagIds.length) params.set("tagIds", selectedTagIds.join(","));
+      if (selectedMetadataTags.length) params.set("metadataTag", selectedMetadataTags.join(","));
       if (selectedDomain) params.set("domain", selectedDomain);
       params.set("page", String(Math.floor(offset / LIMIT) + 1));
       const res = await fetch(`/api/highlights?${params}`, { credentials: "include" });
@@ -677,7 +679,7 @@ export default function MindPalace() {
     } finally {
       setHighlightsLoading(false);
     }
-  }, [debouncedSearch, selectedTagId, selectedDomain, offset]);
+  }, [debouncedSearch, selectedTagIds, selectedMetadataTags, selectedDomain, offset]);
 
   useEffect(() => { fetchHighlights(); }, [fetchHighlights]);
 
@@ -703,6 +705,17 @@ export default function MindPalace() {
   }, []);
   useEffect(() => { fetchDomainStats(); }, [fetchDomainStats]);
 
+  const [allMetadataTags, setAllMetadataTags] = useState<string[]>([]);
+  const fetchMetadataTags = useCallback(async () => {
+    try {
+      const res = await fetch("/api/highlights?action=metadata-tags", { credentials: "include" });
+      if (res.ok) setAllMetadataTags(await res.json());
+    } catch {
+      // ignore network errors
+    }
+  }, []);
+  useEffect(() => { fetchMetadataTags(); }, [fetchMetadataTags]);
+
   // ─── Actions ─────────────────────────────────────────────────────────────────
 
   const handleDeleteTag = (id: number, name: string) => {
@@ -715,7 +728,7 @@ export default function MindPalace() {
     setConfirmDeleteTag(null);
     await fetch(`/api/tags/${id}`, { method: "DELETE", credentials: "include" });
     fetchTags();
-    if (selectedTagId === id) setSelectedTagId(undefined);
+    setSelectedTagIds((prev) => prev.filter((tid) => tid !== id));
     toast.success(`Tag "${name}" deleted`);
   };
 
@@ -733,7 +746,7 @@ export default function MindPalace() {
 
   // Group highlights by domain for display
   const grouped = useMemo(() => {
-    if (selectedDomain || debouncedSearch || selectedTagId) return null; // flat list when filtering
+    if (selectedDomain || debouncedSearch || selectedTagIds.length || selectedMetadataTags.length) return null; // flat list when filtering
     const map: Record<string, typeof highlights> = {};
     for (const h of sortedHighlights) {
       const key = h.domain || "Other";
@@ -741,7 +754,7 @@ export default function MindPalace() {
       map[key].push(h);
     }
     return map;
-  }, [highlights, selectedDomain, debouncedSearch, selectedTagId]);
+  }, [highlights, selectedDomain, debouncedSearch, selectedTagIds, selectedMetadataTags]);
 
   if (loading) {
     return (
@@ -778,7 +791,7 @@ export default function MindPalace() {
         {/* Nav */}
         <nav className="p-3 space-y-1">
           <button
-            onClick={() => { setSelectedTagId(undefined); setSelectedDomain(undefined); setSearch(""); setDebouncedSearch(""); }}
+            onClick={() => { setSelectedTagIds([]); setSelectedMetadataTags([]); setSelectedDomain(undefined); setSearch(""); setDebouncedSearch(""); }}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm hover:bg-sidebar-accent transition-colors text-sidebar-foreground"
           >
             <BookOpen className="w-4 h-4" />
@@ -827,16 +840,18 @@ export default function MindPalace() {
               <div
                 key={t.id}
                 className={`group flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
-                  selectedTagId === t.id
+                  selectedTagIds.includes(t.id)
                     ? "bg-primary/10"
                     : "hover:bg-sidebar-accent"
                 }`}
-                onClick={() => setSelectedTagId(selectedTagId === t.id ? undefined : t.id)}
+                onClick={() => setSelectedTagIds((prev) =>
+                  prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]
+                )}
               >
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.color }} />
                 <span
                   className="flex-1 truncate"
-                  style={{ color: selectedTagId === t.id ? t.color : undefined }}
+                  style={{ color: selectedTagIds.includes(t.id) ? t.color : undefined }}
                 >
                   {t.name}
                 </span>
@@ -856,6 +871,30 @@ export default function MindPalace() {
             )}
           </div>
         </div>
+
+        {/* Auto Topics */}
+        {allMetadataTags.length > 0 && (
+          <div className="px-3 py-2 border-t border-border/50">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-2">Topics</p>
+            <div className="flex flex-wrap gap-1.5 px-3">
+              {allMetadataTags.map((mt) => (
+                <button
+                  key={mt}
+                  onClick={() => setSelectedMetadataTags((prev) =>
+                    prev.includes(mt) ? prev.filter((t) => t !== mt) : [...prev, mt]
+                  )}
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors border ${
+                    selectedMetadataTags.includes(mt)
+                      ? "bg-primary/20 text-primary border-primary/40"
+                      : "bg-secondary/50 text-muted-foreground border-border hover:text-foreground hover:bg-secondary"
+                  }`}
+                >
+                  {mt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Bottom actions */}
         <div className="p-3 border-t border-border space-y-1">
@@ -908,15 +947,26 @@ export default function MindPalace() {
           </div>
 
           {/* Active filters */}
-          {(selectedTagId || selectedDomain) && (
-            <div className="flex items-center gap-2 mt-3">
-              <span className="text-xs text-muted-foreground">Filtering by:</span>
-              {selectedTagId && (
-                <TagChip
-                  tag={tags.find((t) => t.id === selectedTagId) ?? { id: 0, name: "Tag", color: "#6366f1" }}
-                  onRemove={() => setSelectedTagId(undefined)}
-                />
-              )}
+          {(selectedTagIds.length > 0 || selectedMetadataTags.length > 0 || selectedDomain) && (
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <span className="text-xs text-muted-foreground shrink-0">Filtering by:</span>
+              {selectedTagIds.map((id) => {
+                const tag = tags.find((t) => t.id === id);
+                if (!tag) return null;
+                return (
+                  <TagChip
+                    key={id}
+                    tag={tag}
+                    onRemove={() => setSelectedTagIds((prev) => prev.filter((tid) => tid !== id))}
+                  />
+                );
+              })}
+              {selectedMetadataTags.map((mt) => (
+                <span key={mt} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                  {mt}
+                  <X className="w-2.5 h-2.5 cursor-pointer hover:opacity-70" onClick={() => setSelectedMetadataTags((prev) => prev.filter((t) => t !== mt))} />
+                </span>
+              ))}
               {selectedDomain && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary border border-border text-foreground">
                   <Globe className="w-3 h-3" />
@@ -948,12 +998,12 @@ export default function MindPalace() {
                 <Highlighter className="w-8 h-8 text-primary/60" />
               </div>
               <h3 className="text-lg font-semibold mb-2">
-                {debouncedSearch || selectedTagId || selectedDomain
+                {debouncedSearch || selectedTagIds.length || selectedMetadataTags.length || selectedDomain
                   ? "No highlights match your filters"
                   : "Your mind palace is empty"}
               </h3>
               <p className="text-sm text-muted-foreground max-w-sm">
-                {debouncedSearch || selectedTagId || selectedDomain
+                {debouncedSearch || selectedTagIds.length || selectedMetadataTags.length || selectedDomain
                   ? "Try adjusting your search or removing filters."
                   : "Install the Chrome extension, select text on any webpage, and press Ctrl+Shift+S to start capturing knowledge."}
               </p>

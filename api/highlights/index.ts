@@ -77,6 +77,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(405).json({ error: "Method not allowed for highlight ID endpoint" });
     }
 
+    // ── GET ?action=metadata-tags ─────────────────────────────────────────
+    if (req.method === "GET" && action === "metadata-tags") {
+      const rows = await db
+        .select({ metadataTags: highlights.metadataTags })
+        .from(highlights)
+        .where(eq(highlights.userId, userId));
+      const tagSet = new Set<string>();
+      for (const row of rows) {
+        try {
+          const parsed = JSON.parse(row.metadataTags || "[]");
+          if (Array.isArray(parsed)) parsed.forEach((t: string) => tagSet.add(t));
+        } catch {}
+      }
+      return res.status(200).json([...tagSet].sort());
+    }
+
     // ── GET ?action=stats ──────────────────────────────────────────────────
     if (req.method === "GET" && action === "stats") {
       const stats = await db
@@ -143,7 +159,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ── GET (list with search/filter/pagination) ───────────────────────────
     if (req.method === "GET") {
       const search = (req.query.search as string) || "";
-      const tagId = req.query.tagId ? Number(req.query.tagId) : undefined;
+      const tagIdsParam = (req.query.tagIds as string) || "";
+      const metadataTagParam = (req.query.metadataTag as string) || "";
       const domain = (req.query.domain as string) || "";
       const page = Math.max(1, Number(req.query.page) || 1);
       const limit = 30;
@@ -166,15 +183,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (domain) conditions.push(eq(highlights.domain, domain));
 
-      if (tagId) {
-        conditions.push(
-          or(
-            like(highlights.tagIds, `[${tagId}]`),
-            like(highlights.tagIds, `[${tagId},%`),
-            like(highlights.tagIds, `%,${tagId}]`),
-            like(highlights.tagIds, `%,${tagId},%`)
-          )!
-        );
+      if (tagIdsParam) {
+        const ids = tagIdsParam.split(",").map(Number).filter((n) => !isNaN(n) && n > 0);
+        if (ids.length > 0) {
+          conditions.push(
+            or(
+              ...ids.flatMap((id) => [
+                like(highlights.tagIds, `[${id}]`),
+                like(highlights.tagIds, `[${id},%`),
+                like(highlights.tagIds, `%,${id}]`),
+                like(highlights.tagIds, `%,${id},%`),
+              ])
+            )!
+          );
+        }
+      }
+
+      if (metadataTagParam) {
+        const mTags = metadataTagParam.split(",").filter(Boolean);
+        if (mTags.length > 0) {
+          conditions.push(
+            or(...mTags.map((mt) => like(highlights.metadataTags, `%"${mt}"%`)))!
+          );
+        }
       }
 
       const whereClause = and(...conditions);
