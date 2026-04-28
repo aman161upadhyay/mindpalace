@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { parseTagIds } from "@/types";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import {
   BookOpen,
   Calendar,
@@ -22,7 +23,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -104,26 +105,6 @@ function HighlightCard({
   const highlightTags = tags.filter((t) => tagIds.includes(t.id));
   const preview = highlight.text.length > 280 ? highlight.text.slice(0, 280) + "\u2026" : highlight.text;
 
-  const handleRemoveTag = async (e: React.MouseEvent, tagId: number) => {
-    e.stopPropagation();
-    try {
-      const currentTagIds = parseTagIds(highlight.tagIds);
-      const updatedTagIds = currentTagIds.filter((id) => id !== tagId);
-      const res = await fetch(`/api/highlights?id=${highlight.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ tagIds: updatedTagIds }),
-      });
-      if (res.ok) {
-        onClick(); // Trigger a refresh of the parent state if needed, or just let the list re-fetch
-        // Actually, since this is a child component, we might need a callback to the parent
-      }
-    } catch (err) {
-      toast.error("Failed to remove tag");
-    }
-  };
-
   return (
     <div
       className="group p-5 rounded-3xl glass-panel hover:bg-card border border-border hover:border-primary/40 cursor-pointer transition-all hover:shadow-2xl hover:shadow-primary/10 relative overflow-hidden"
@@ -143,19 +124,15 @@ function HighlightCard({
             key={t.id}
             tag={t}
             onRemove={() => {
-              // This is a bit tricky since we don't have a direct 'onUpdated' here.
-              // But we can trigger a refresh via a window event or just wait for the next fetch.
-              // For now, let's assume the parent handles it or we'll add a refresh call.
+              const updatedTagIds = highlightTags
+                .filter((tag) => tag.id !== t.id)
+                .map((tag) => tag.id);
               fetch(`/api/highlights?id=${highlight.id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
-                body: JSON.stringify({ tagIds: parseTagIds(highlight.tagIds).filter(id => id !== t.id) }),
-              }).then(() => {
-                // We need to tell the parent to refresh.
-                // Since this component is deep, I'll add a onUpdated prop to HighlightCard.
-                onUpdated();
-              });
+                body: JSON.stringify({ tagIds: updatedTagIds }),
+              }).then(() => onUpdated());
             }}
           />
         ))}
@@ -205,6 +182,7 @@ function HighlightDetailModal({
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const [notes, setNotes] = useState<string>("");
   const [text, setText] = useState<string>("");
@@ -267,14 +245,12 @@ function HighlightDetailModal({
   };
 
   const handleDelete = async () => {
-    if (confirm("Delete this highlight? This cannot be undone.")) {
-      setDeleting(true);
-      await fetch(`/api/highlights?id=${highlightId}`, { method: "DELETE", credentials: "include" });
-      setDeleting(false);
-      onDeleted();
-      toast.success("Highlight deleted");
-      onClose();
-    }
+    setDeleting(true);
+    await fetch(`/api/highlights?id=${highlightId}`, { method: "DELETE", credentials: "include" });
+    setDeleting(false);
+    onDeleted();
+    toast.success("Highlight deleted");
+    onClose();
   };
 
   const handleCreateTag = async () => {
@@ -469,7 +445,7 @@ function HighlightDetailModal({
             variant="ghost"
             size="default"
             className="text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full px-6"
-            onClick={handleDelete}
+            onClick={() => setShowDeleteConfirm(true)}
             disabled={deleting || isLoading}
           >
             <Trash2 className="w-4 h-4 mr-2" />
@@ -501,6 +477,14 @@ function HighlightDetailModal({
           </div>
         </div>
       </DialogContent>
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete highlight?"
+        description="This cannot be undone. The highlight will be permanently removed from your Mind Palace."
+        confirmLabel="Delete"
+        onConfirm={() => { setShowDeleteConfirm(false); handleDelete(); }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </Dialog>
   );
 }
@@ -656,16 +640,18 @@ export default function MindPalace() {
   const [showExport, setShowExport] = useState(false);
   const [showNewTag, setShowNewTag] = useState(false);
   const [offset, setOffset] = useState(0);
+  const [confirmDeleteTag, setConfirmDeleteTag] = useState<{ id: number; name: string } | null>(null);
   const LIMIT = 30;
 
   // Debounce search
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleSearchChange = useCallback((val: string) => {
     setSearch(val);
-    const t = setTimeout(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
       setDebouncedSearch(val);
       setOffset(0);
     }, 300);
-    return () => clearTimeout(t);
   }, []);
 
   // ─── Data fetching (fetch-based) ────────────────────────────────────────────
@@ -716,8 +702,14 @@ export default function MindPalace() {
 
   // ─── Actions ─────────────────────────────────────────────────────────────────
 
-  const handleDeleteTag = async (id: number, name: string) => {
-    if (!confirm(`Delete tag "${name}"? This will remove it from all highlights.`)) return;
+  const handleDeleteTag = (id: number, name: string) => {
+    setConfirmDeleteTag({ id, name });
+  };
+
+  const confirmHandleDeleteTag = async () => {
+    if (!confirmDeleteTag) return;
+    const { id, name } = confirmDeleteTag;
+    setConfirmDeleteTag(null);
     await fetch(`/api/tags/${id}`, { method: "DELETE", credentials: "include" });
     fetchTags();
     if (selectedTagId === id) setSelectedTagId(undefined);
@@ -1038,6 +1030,14 @@ export default function MindPalace() {
       )}
       {showExport && <ExportModal onClose={() => setShowExport(false)} />}
       {showNewTag && <NewTagModal onClose={() => setShowNewTag(false)} onCreated={() => fetchTags()} />}
+      <ConfirmDialog
+        open={confirmDeleteTag !== null}
+        title={`Delete "${confirmDeleteTag?.name}"?`}
+        description="This tag will be removed from all highlights. This cannot be undone."
+        confirmLabel="Delete Tag"
+        onConfirm={confirmHandleDeleteTag}
+        onCancel={() => setConfirmDeleteTag(null)}
+      />
     </div>
   );
 }
