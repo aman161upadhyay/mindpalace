@@ -16,7 +16,7 @@ export const users = pgTable("users", {
   email: varchar("email", { length: 255 }).notNull().unique(),
   passwordHash: varchar("password_hash", { length: 255 }).notNull(),
   theme: varchar("theme", { length: 10 }).notNull().default("dark"),
-  dailyEmailEnabled: boolean("daily_email_enabled").notNull().default(true),
+  dailyEmailEnabled: boolean("daily_email_enabled").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
