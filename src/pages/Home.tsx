@@ -1282,6 +1282,9 @@ export default function Home() {
             <button onClick={() => navigate("/login")} className="hover:text-foreground transition-colors">
               Sign in
             </button>
+            <button onClick={() => navigate("/faq")} className="hover:text-foreground transition-colors">
+              FAQ
+            </button>
             <button onClick={() => navigate("/privacy")} className="hover:text-foreground transition-colors">
               Privacy Policy
             </button>

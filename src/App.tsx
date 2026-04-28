@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Home from "./pages/Home";
 import Contact from "./pages/Contact";
 import Privacy from "./pages/Privacy";
+import FAQ from "./pages/FAQ";
 import MindPalace from "./pages/MindPalace";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
@@ -34,6 +35,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/contact" component={Contact} />
       <Route path="/privacy" component={Privacy} />
+      <Route path="/faq" component={FAQ} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/forgot-password" component={ForgotPassword} />
