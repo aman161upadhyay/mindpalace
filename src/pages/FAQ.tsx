@@ -84,9 +84,9 @@ const FAQS: { q: string; a: string | ReactNode }[] = [
           href="mailto:aupadhyay@mba2027.hbs.edu"
           className="text-primary underline underline-offset-2 hover:opacity-80 transition-opacity"
         >
-          hello@mindpalace.app
+          aupadhyay@mba2027.hbs.edu
         </a>{" "}
-        with your username and we'll permanently delete your account and all associated data within 48 hours.
+        with your username and we'll permanently delete your account and all associated data within 7 days.
       </>
     ),
   },

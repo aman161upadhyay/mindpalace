@@ -149,7 +149,7 @@ function HighlightCard({
       <div className="flex items-center gap-3 text-xs text-muted-foreground/70 relative z-10 font-mono uppercase tracking-wider">
         <div className="flex items-center gap-1 min-w-0 flex-1">
           <Globe className="w-3 h-3 shrink-0" />
-          <span className="truncate">{highlight.domain || new URL(highlight.sourceUrl).hostname}</span>
+          <span className="truncate">{highlight.domain || (() => { try { return new URL(highlight.sourceUrl).hostname; } catch { return highlight.sourceUrl; } })()}</span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <Calendar className="w-3 h-3" />
