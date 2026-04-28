@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { and, eq, like } from "drizzle-orm";
+import { and, eq, like, or } from "drizzle-orm";
 import { db } from "../../src/lib/db";
 import { tags, highlights } from "../../src/schema";
 import { getAuthUserIdFromVercelReq } from "../../src/lib/auth";
@@ -38,11 +38,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .returning();
 
       if (deleted.length > 0) {
-        const searchPattern = `%${id}%`;
         const highlightsToUpdate = await db
           .select({ id: highlights.id, tagIds: highlights.tagIds })
           .from(highlights)
-          .where(and(eq(highlights.userId, userId), like(highlights.tagIds, searchPattern)));
+          .where(
+            and(
+              eq(highlights.userId, userId),
+              or(
+                like(highlights.tagIds, `[${id}]`),
+                like(highlights.tagIds, `[${id},%`),
+                like(highlights.tagIds, `%,${id}]`),
+                like(highlights.tagIds, `%,${id},%`)
+              )
+            )
+          );
 
         for (const h of highlightsToUpdate) {
           try {
