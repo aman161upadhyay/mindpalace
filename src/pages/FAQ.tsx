@@ -12,7 +12,7 @@ const FAQS: { q: string; a: string | JSX.Element }[] = [
     a: (
       <>
         Install the Mind Palace Chrome extension, sign in with your account credentials, then select any text on a webpage and press{" "}
-        <span className="font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">Alt + H</span>{" "}
+        <span className="font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">Ctrl + Space + S</span>{" "}
         (or right-click and choose <em>Save to Mind Palace</em>). The highlight is saved instantly — no copying, no pasting.
       </>
     ),
@@ -81,7 +81,7 @@ const FAQS: { q: string; a: string | JSX.Element }[] = [
       <>
         Email us at{" "}
         <a
-          href="mailto:hello@mindpalace.app"
+          href="mailto:aupadhyay@mba2027.hbs.edu"
           className="text-primary underline underline-offset-2 hover:opacity-80 transition-opacity"
         >
           hello@mindpalace.app
