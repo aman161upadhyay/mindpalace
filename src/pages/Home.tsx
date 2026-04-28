@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Leaf, Menu, Moon, Sun, X as XIcon } from "lucide-react";
+import { ArrowRight, Leaf, Menu, Moon, Settings, Sun, X as XIcon } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
   ScrambledOnce,
@@ -930,6 +930,15 @@ function LandingNav() {
             {theme === "light" ? <Moon className="w-3 h-3" /> : <Sun className="w-3 h-3" />}
             {theme === "light" ? "Dark" : "Light"}
           </button>
+          {isAuthenticated && (
+            <button
+              onClick={() => navigate("/settings")}
+              className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title="Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          )}
           {isAuthenticated ? (
             <Button size="sm" onClick={() => navigate("/mind-palace")} className="rounded-full px-5 h-8 text-xs">
               Open Mind Palace
@@ -967,6 +976,15 @@ function LandingNav() {
             {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
             {theme === "light" ? "Switch to Dark" : "Switch to Light"}
           </button>
+          {isAuthenticated && (
+            <button
+              onClick={() => { navigate("/settings"); setMenuOpen(false); }}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+              Settings
+            </button>
+          )}
           {isAuthenticated ? (
             <Button size="sm" onClick={() => { navigate("/mind-palace"); setMenuOpen(false); }} className="rounded-full w-full">
               Open Mind Palace
