@@ -278,6 +278,7 @@ Items still open from audit (not quick wins):
 | v0.1 | 2026-04-15 | Initial build — full stack working locally |
 | v0.9 | 2026-04-27 | Deployed to Vercel + Neon; extension tested; security audit session 1 |
 | v1.0 | 2026-04-28 | CWS submitted — all critical/high security fixed, UX polish complete, audit fixes applied |
+| v1.2 | 2026-05-31 | Obsidian export (multi-file ZIP with YAML frontmatter, group by topic/tag/domain), Notion CSV export, Notion direct sync integration (Settings → connect token + DB ID → sync highlights as pages), Twitter/X bookmarks import, Reddit saved posts import, generic JSON/CSV import. Import/export from sidebar. Migration: `drizzle/0002_integrations.sql` adds `notion_token`, `notion_database_id`, `notion_last_sync` to `users`. FAQ updated with new features. |
 
 ---
 

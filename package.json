@@ -10,10 +10,12 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
+    "@notionhq/client": "^5.22.0",
     "@vercel/node": "^5.7.5",
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.45.2",
     "jose": "^4.15.9",
+    "jszip": "^3.10.1",
     "lucide-react": "^1.8.0",
     "nanoid": "^5.1.7",
     "react": "^19.2.4",

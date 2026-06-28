@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { and, desc, eq, ilike, like, or, sql } from "drizzle-orm";
 import { db } from "../../src/lib/db";
-import { highlights, tags } from "../../src/schema";
+import { highlights, tags, users } from "../../src/schema";
 import { getAuthUserIdFromVercelReq } from "../../src/lib/auth";
 import { applyCors } from "../../src/lib/cors";
 import { rateLimit, getClientIp } from "../../src/lib/rate-limit";
@@ -105,11 +105,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json(stats);
     }
 
-    // ── GET ?action=export&format=json|markdown ────────────────────────────
+    // ── GET ?action=export&format=json|markdown|obsidian|notion-csv ─────────
     if (req.method === "GET" && action === "export") {
       const format = (req.query.format as string) || "json";
-      if (format !== "json" && format !== "markdown")
-        return res.status(400).json({ error: "Format must be 'json' or 'markdown'" });
+      const groupBy = (req.query.groupBy as string) || "domain";
+      const validFormats = ["json", "markdown", "obsidian", "notion-csv"];
+      if (!validFormats.includes(format))
+        return res.status(400).json({ error: `Format must be one of: ${validFormats.join(", ")}` });
 
       const [allHighlights, allTags] = await Promise.all([
         db.select().from(highlights).where(eq(highlights.userId, userId)).orderBy(desc(highlights.createdAt)),
@@ -118,6 +120,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const tagMap = Object.fromEntries(allTags.map((t) => [t.id, t]));
 
+      // Helper: resolve tag names for a highlight
+      const getTagNames = (h: typeof allHighlights[0]) =>
+        (JSON.parse(h.tagIds || "[]") as number[]).map((id) => tagMap[id]?.name).filter(Boolean) as string[];
+      const getMetadataTags = (h: typeof allHighlights[0]) => {
+        try { return JSON.parse(h.metadataTags || "[]") as string[]; } catch { return []; }
+      };
+
+      // ── JSON ──
       if (format === "json") {
         const data = allHighlights.map((h) => ({
           id: h.id,
@@ -126,34 +136,267 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           pageTitle: h.pageTitle,
           domain: h.domain,
           notes: h.notes,
-          tags: (JSON.parse(h.tagIds || "[]") as number[]).map((id) => tagMap[id]?.name).filter(Boolean),
-          metadataTags: JSON.parse(h.metadataTags || "[]"),
+          tags: getTagNames(h),
+          metadataTags: getMetadataTags(h),
           createdAt: h.createdAt,
         }));
         return res.status(200).json({ content: JSON.stringify(data, null, 2), filename: "highlights.json" });
       }
 
-      const grouped: Record<string, typeof allHighlights> = {};
-      for (const h of allHighlights) {
-        const key = h.domain || "Unknown Source";
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(h);
+      // ── Markdown (single file, grouped by domain) ──
+      if (format === "markdown") {
+        const grouped: Record<string, typeof allHighlights> = {};
+        for (const h of allHighlights) {
+          const key = h.domain || "Unknown Source";
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(h);
+        }
+
+        let md = `# My Mind Palace\n\n*Exported ${new Date().toLocaleDateString()}*\n\n---\n\n`;
+        for (const [domain, items] of Object.entries(grouped)) {
+          md += `## ${domain}\n\n`;
+          for (const h of items) {
+            const tagNames = getTagNames(h);
+            md += `> ${h.text}\n\n`;
+            md += `**Source:** [${h.pageTitle || h.sourceUrl}](${h.sourceUrl})  \n`;
+            md += `**Saved:** ${new Date(h.createdAt).toLocaleDateString()}  \n`;
+            if (tagNames.length) md += `**Tags:** ${tagNames.join(", ")}  \n`;
+            if (h.notes) md += `**Notes:** ${h.notes}  \n`;
+            md += `\n---\n\n`;
+          }
+        }
+        return res.status(200).json({ content: md, filename: "highlights.md" });
       }
 
-      let md = `# My Mind Palace\n\n*Exported ${new Date().toLocaleDateString()}*\n\n---\n\n`;
-      for (const [domain, items] of Object.entries(grouped)) {
-        md += `## ${domain}\n\n`;
-        for (const h of items) {
+      // ── Obsidian (multiple MD files with YAML frontmatter, grouped by topic/tag/domain) ──
+      if (format === "obsidian") {
+        const validGroupBy = ["topic", "tag", "domain", "source", "all"];
+        const gBy = validGroupBy.includes(groupBy) ? groupBy : "topic";
+
+        // Group highlights
+        const grouped: Record<string, typeof allHighlights> = {};
+        for (const h of allHighlights) {
+          let keys: string[] = [];
+          if (gBy === "topic") {
+            keys = getMetadataTags(h);
+            if (keys.length === 0) keys = ["Uncategorized"];
+          } else if (gBy === "tag") {
+            keys = getTagNames(h);
+            if (keys.length === 0) keys = ["Untagged"];
+          } else if (gBy === "domain") {
+            keys = [h.domain || "Unknown Source"];
+          } else if (gBy === "source") {
+            keys = [h.pageTitle || h.sourceUrl || "Unknown"];
+          } else {
+            keys = ["All Highlights"];
+          }
+          for (const key of keys) {
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(h);
+          }
+        }
+
+        // Generate files array
+        const files: Array<{ filename: string; content: string }> = [];
+        for (const [groupName, items] of Object.entries(grouped)) {
+          const safeFilename = groupName.replace(/[<>:"/\\|?*]/g, "-").trim();
+          // Collect all tags/topics for this group
+          const allGroupTags = new Set<string>();
+          const allGroupTopics = new Set<string>();
+          for (const h of items) {
+            getTagNames(h).forEach((t) => allGroupTags.add(t));
+            getMetadataTags(h).forEach((t) => allGroupTopics.add(t));
+          }
+
+          let md = `---\n`;
+          md += `title: "${groupName}"\n`;
+          md += `type: mind-palace-export\n`;
+          md += `group_by: ${gBy}\n`;
+          md += `exported: ${new Date().toISOString()}\n`;
+          md += `highlight_count: ${items.length}\n`;
+          if (allGroupTags.size > 0) md += `tags:\n${[...allGroupTags].map((t) => `  - "${t}"`).join("\n")}\n`;
+          if (allGroupTopics.size > 0) md += `topics:\n${[...allGroupTopics].map((t) => `  - "${t}"`).join("\n")}\n`;
+          md += `---\n\n`;
+          md += `# ${groupName}\n\n`;
+          md += `> ${items.length} highlights from Mind Palace\n\n---\n\n`;
+
+          for (const h of items) {
+            const tagNames = getTagNames(h);
+            const metaTags = getMetadataTags(h);
+            md += `## ${h.pageTitle || "Untitled"}\n\n`;
+            md += `> ${h.text}\n\n`;
+            md += `- **Source:** [${h.pageTitle || h.sourceUrl}](${h.sourceUrl})\n`;
+            md += `- **Domain:** ${h.domain || "N/A"}\n`;
+            md += `- **Saved:** ${new Date(h.createdAt).toISOString().split("T")[0]}\n`;
+            if (tagNames.length) md += `- **Tags:** ${tagNames.map((t) => `#${t.replace(/\s+/g, "-")}`).join(" ")}\n`;
+            if (metaTags.length) md += `- **Topics:** ${metaTags.join(", ")}\n`;
+            if (h.notes) md += `- **Notes:** ${h.notes}\n`;
+            md += `\n---\n\n`;
+          }
+
+          files.push({ filename: `Mind Palace - ${safeFilename}.md`, content: md });
+        }
+
+        return res.status(200).json({ files, groupBy: gBy, totalFiles: files.length });
+      }
+
+      // ── Notion CSV ──
+      if (format === "notion-csv") {
+        const rows = [["Title", "Highlight Text", "Source URL", "Domain", "Tags", "Topics", "Notes", "Date Saved"]];
+        for (const h of allHighlights) {
+          const tagNames = getTagNames(h);
+          const metaTags = getMetadataTags(h);
+          rows.push([
+            h.pageTitle || "Untitled",
+            h.text.replace(/"/g, '""'),
+            h.sourceUrl,
+            h.domain,
+            tagNames.join(", "),
+            metaTags.join(", "),
+            (h.notes || "").replace(/"/g, '""'),
+            new Date(h.createdAt).toISOString().split("T")[0],
+          ]);
+        }
+        const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+        return res.status(200).json({ content: csv, filename: "mind-palace-notion.csv" });
+      }
+
+      return res.status(400).json({ error: "Unknown format" });
+    }
+
+    // ── POST ?action=notion-sync — Push highlights to Notion ────────────────
+    if (req.method === "POST" && action === "notion-sync") {
+      const { Client: NotionClient } = await import("@notionhq/client");
+      const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (!user[0]?.notionToken || !user[0]?.notionDatabaseId)
+        return res.status(400).json({ error: "Notion not connected. Add your Notion integration token and database ID in Settings." });
+
+      const notion = new NotionClient({ auth: user[0].notionToken });
+      const dbId = user[0].notionDatabaseId;
+
+      // Fetch highlights to sync (all, or could be filtered)
+      const filterMetadataTag = req.body?.metadataTag as string | undefined;
+      const filterTagId = req.body?.tagId as number | undefined;
+      const conditions = [eq(highlights.userId, userId)];
+      if (filterMetadataTag) conditions.push(like(highlights.metadataTags, `%"${filterMetadataTag}"%`));
+      if (filterTagId) {
+        conditions.push(
+          or(
+            like(highlights.tagIds, `[${filterTagId}]`),
+            like(highlights.tagIds, `[${filterTagId},%`),
+            like(highlights.tagIds, `%,${filterTagId}]`),
+            like(highlights.tagIds, `%,${filterTagId},%`)
+          )!
+        );
+      }
+
+      const allTags = await db.select().from(tags).where(eq(tags.userId, userId));
+      const tagMap = Object.fromEntries(allTags.map((t) => [t.id, t]));
+
+      const toSync = await db.select().from(highlights).where(and(...conditions)).orderBy(desc(highlights.createdAt));
+
+      let synced = 0;
+      let errors = 0;
+      for (const h of toSync) {
+        try {
           const tagNames = (JSON.parse(h.tagIds || "[]") as number[]).map((id) => tagMap[id]?.name).filter(Boolean);
-          md += `> ${h.text}\n\n`;
-          md += `**Source:** [${h.pageTitle || h.sourceUrl}](${h.sourceUrl})  \n`;
-          md += `**Saved:** ${new Date(h.createdAt).toLocaleDateString()}  \n`;
-          if (tagNames.length) md += `**Tags:** ${tagNames.join(", ")}  \n`;
-          if (h.notes) md += `**Notes:** ${h.notes}  \n`;
-          md += `\n---\n\n`;
+          let metaTags: string[] = [];
+          try { metaTags = JSON.parse(h.metadataTags || "[]"); } catch {}
+
+          await notion.pages.create({
+            parent: { database_id: dbId },
+            properties: {
+              "Title": { title: [{ text: { content: h.pageTitle || "Untitled Highlight" } }] },
+              "Source URL": { url: h.sourceUrl || null },
+              "Domain": { rich_text: [{ text: { content: h.domain || "" } }] },
+              "Tags": { multi_select: tagNames.map((n) => ({ name: n })) },
+              "Topics": { multi_select: metaTags.map((t) => ({ name: t })) },
+              "Date Saved": { date: { start: new Date(h.createdAt).toISOString().split("T")[0] } },
+            },
+            children: [
+              {
+                object: "block",
+                type: "quote",
+                quote: { rich_text: [{ type: "text", text: { content: h.text.slice(0, 2000) } }] },
+              },
+              ...(h.notes ? [{
+                object: "block" as const,
+                type: "paragraph" as const,
+                paragraph: { rich_text: [{ type: "text" as const, text: { content: `Notes: ${h.notes.slice(0, 2000)}` } }] },
+              }] : []),
+            ],
+          });
+          synced++;
+        } catch (e) {
+          console.error(`[notion-sync] Failed to sync highlight ${h.id}:`, e);
+          errors++;
         }
       }
-      return res.status(200).json({ content: md, filename: "highlights.md" });
+
+      // Update last sync timestamp
+      await db.update(users).set({ notionLastSync: new Date() }).where(eq(users.id, userId));
+
+      return res.status(200).json({
+        success: true,
+        synced,
+        errors,
+        total: toSync.length,
+        message: `Synced ${synced} highlights to Notion${errors > 0 ? ` (${errors} failed)` : ""}`,
+      });
+    }
+
+    // ── POST ?action=import — Bulk import highlights from Twitter/Reddit/JSON ──
+    if (req.method === "POST" && action === "import") {
+      const ip = getClientIp(req.headers);
+      const { allowed } = rateLimit(ip, { windowMs: 60_000, max: 10 });
+      if (!allowed) return res.status(429).json({ error: "Too many requests" });
+
+      const source = (req.body?.source as string) || "manual";
+      const items = req.body?.items as Array<{ text: string; sourceUrl: string; pageTitle?: string; domain?: string; notes?: string }>;
+
+      if (!Array.isArray(items) || items.length === 0)
+        return res.status(400).json({ error: "Items array is required" });
+      if (items.length > 500)
+        return res.status(400).json({ error: "Maximum 500 items per import" });
+
+      let imported = 0;
+      let skipped = 0;
+      for (const item of items) {
+        if (!item.text || typeof item.text !== "string" || item.text.length === 0) { skipped++; continue; }
+        if (item.text.length > 50000) { skipped++; continue; }
+
+        const sourceUrl = item.sourceUrl && /^https?:\/\//i.test(item.sourceUrl)
+          ? item.sourceUrl
+          : `https://import.mindpalace/${source}`;
+        const domain = item.domain || (() => { try { return new URL(sourceUrl).hostname; } catch { return source; } })();
+        const metadataTags = inferTags(item.text);
+
+        try {
+          await db.insert(highlights).values({
+            userId,
+            text: item.text.slice(0, 50000),
+            sourceUrl,
+            pageTitle: (item.pageTitle || "").slice(0, 512),
+            domain: domain.slice(0, 255),
+            notes: item.notes || null,
+            tagIds: "[]",
+            metadataTags: JSON.stringify(metadataTags),
+          });
+          imported++;
+        } catch (e) {
+          console.error("[import] Insert error:", e);
+          skipped++;
+        }
+      }
+
+      return res.status(201).json({
+        success: true,
+        imported,
+        skipped,
+        total: items.length,
+        source,
+        message: `Imported ${imported} highlights from ${source}${skipped > 0 ? ` (${skipped} skipped)` : ""}`,
+      });
     }
 
     // ── GET (list with search/filter/pagination) ───────────────────────────

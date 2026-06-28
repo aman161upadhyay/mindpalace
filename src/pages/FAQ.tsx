@@ -57,7 +57,15 @@ const FAQS: { q: string; a: string | ReactNode }[] = [
   },
   {
     q: "Can I export my highlights?",
-    a: "Yes. From your dashboard, click Export in the sidebar. You can download everything as a JSON file (for use with other tools) or as a Markdown file (for use with Obsidian, Notion, and similar apps).",
+    a: "Yes. From your dashboard, click Export in the sidebar. You can download as JSON, Markdown, Obsidian-ready ZIP (with YAML frontmatter, grouped by topic/tag/domain), or Notion-ready CSV. For Obsidian, each topic or tag becomes a separate .md file you can drop into your vault. You can also connect Notion directly in Settings to sync highlights as pages into a Notion database.",
+  },
+  {
+    q: "Can I import highlights from Twitter/X or Reddit?",
+    a: "Yes. Click Import in the sidebar. You can import Twitter/X bookmarks (from your data export) and Reddit saved posts (from your data request). You can also import from any JSON or CSV file. Each imported item is auto-tagged with relevant topics.",
+  },
+  {
+    q: "How does Notion integration work?",
+    a: "Go to Settings and scroll to Notion Integration. Create a Notion integration at notion.so/my-integrations, set up a database with the required properties (Title, Source URL, Domain, Tags, Topics, Date Saved), share it with your integration, then paste the token and database ID in Settings. Once connected, you can sync all your highlights to Notion with one click.",
   },
   {
     q: "How do I add notes to a highlight?",

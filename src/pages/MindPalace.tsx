@@ -23,6 +23,7 @@ import {
   Settings,
   Tag,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -491,65 +492,505 @@ function HighlightDetailModal({
   );
 }
 
-// ─── Export Modal ─────────────────────────────────────────────────────────────
+// ─── Export Modal (enhanced: JSON, Markdown, Obsidian, Notion CSV) ────────────
+
+type ExportFormat = "json" | "markdown" | "obsidian" | "notion-csv";
+type ObsidianGroupBy = "topic" | "tag" | "domain" | "source" | "all";
+
+const FORMAT_INFO: Record<ExportFormat, { label: string; desc: string; icon: string }> = {
+  json: { label: "JSON", desc: "Structured data", icon: "{ }" },
+  markdown: { label: "Markdown", desc: "Single MD file", icon: "MD" },
+  obsidian: { label: "Obsidian", desc: "Multi-file with YAML frontmatter", icon: "Ob" },
+  "notion-csv": { label: "Notion CSV", desc: "Import-ready CSV for Notion", icon: "No" },
+};
+
+const GROUPBY_INFO: Record<ObsidianGroupBy, { label: string; desc: string }> = {
+  topic: { label: "By Topic", desc: "AI, Business, Science, etc." },
+  tag: { label: "By Tag", desc: "Your custom tags" },
+  domain: { label: "By Source Domain", desc: "github.com, arxiv.org, etc." },
+  source: { label: "By Page Title", desc: "One file per source page" },
+  all: { label: "All in One", desc: "Single file, all highlights" },
+};
 
 function ExportModal({ onClose }: { onClose: () => void }) {
-  const [format, setFormat] = useState<"json" | "markdown">("json");
+  const [format, setFormat] = useState<ExportFormat>("json");
+  const [groupBy, setGroupBy] = useState<ObsidianGroupBy>("topic");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleExport = async () => {
     setIsLoading(true);
-    const res = await fetch(`/api/highlights?action=export&format=${format}`, { credentials: "include" });
-    if (res.ok) {
+    try {
+      const params = new URLSearchParams({ action: "export", format });
+      if (format === "obsidian") params.set("groupBy", groupBy);
+      const res = await fetch(`/api/highlights?${params}`, { credentials: "include" });
+      if (!res.ok) { toast.error("Export failed"); return; }
       const data = await res.json();
-      const blob = new Blob([data.content], {
-        type: format === "json" ? "application/json" : "text/markdown",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = data.filename;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success(`Exported as ${data.filename}`);
+
+      if (format === "obsidian" && data.files) {
+        // Generate ZIP with multiple MD files using JSZip
+        const JSZip = (await import("jszip")).default;
+        const zip = new JSZip();
+        for (const file of data.files as Array<{ filename: string; content: string }>) {
+          zip.file(file.filename, file.content);
+        }
+        const blob = await zip.generateAsync({ type: "blob" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `mind-palace-obsidian-${groupBy}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success(`Exported ${data.totalFiles} Obsidian files as ZIP`);
+      } else {
+        // Single file download
+        const mimeTypes: Record<string, string> = {
+          json: "application/json",
+          markdown: "text/markdown",
+          "notion-csv": "text/csv",
+        };
+        const blob = new Blob([data.content], { type: mimeTypes[format] || "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = data.filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success(`Exported as ${data.filename}`);
+      }
+    } catch (err) {
+      toast.error("Export failed");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-md bg-card border-border">
+      <DialogContent className="max-w-lg bg-card border-border">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-foreground">
             <Download className="w-4 h-4 text-primary" />
             Export Mind Palace
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-5">
           <p className="text-sm text-muted-foreground">
-            Download your entire highlight collection in your preferred format.
+            Download your highlight collection. Choose a format based on where you'll use it.
           </p>
+
+          {/* Format selection */}
           <div className="grid grid-cols-2 gap-2">
-            {(["json", "markdown"] as const).map((f) => (
+            {(Object.entries(FORMAT_INFO) as [ExportFormat, typeof FORMAT_INFO[ExportFormat]][]).map(([f, info]) => (
               <button
                 key={f}
                 onClick={() => setFormat(f)}
-                className={`p-3 rounded-lg border text-sm font-medium transition-all ${
+                className={`p-3 rounded-lg border text-left text-sm font-medium transition-all ${
                   format === f
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border bg-secondary/30 text-muted-foreground hover:border-primary/30"
                 }`}
               >
-                {f === "json" ? "JSON" : "Markdown"}
-                <p className="text-xs font-normal mt-0.5 opacity-70">
-                  {f === "json" ? "Structured data" : "Readable format"}
-                </p>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xs font-mono bg-primary/20 text-primary px-1.5 py-0.5 rounded">
+                    {info.icon}
+                  </span>
+                  {info.label}
+                </div>
+                <p className="text-xs font-normal opacity-70">{info.desc}</p>
               </button>
             ))}
           </div>
+
+          {/* Obsidian groupBy options */}
+          {format === "obsidian" && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Group files by
+              </p>
+              <div className="space-y-1">
+                {(Object.entries(GROUPBY_INFO) as [ObsidianGroupBy, typeof GROUPBY_INFO[ObsidianGroupBy]][]).map(([g, info]) => (
+                  <button
+                    key={g}
+                    onClick={() => setGroupBy(g)}
+                    className={`w-full flex items-center gap-3 p-2.5 rounded-lg border text-left text-sm transition-all ${
+                      groupBy === g
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border/50 bg-secondary/20 text-muted-foreground hover:border-primary/30"
+                    }`}
+                  >
+                    <span className={`w-3 h-3 rounded-full border-2 shrink-0 ${
+                      groupBy === g ? "bg-primary border-primary" : "border-muted-foreground/50"
+                    }`} />
+                    <div>
+                      <span className="font-medium">{info.label}</span>
+                      <span className="text-xs opacity-70 ml-2">{info.desc}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground px-1">
+                Each group becomes a separate .md file with YAML frontmatter, bundled into a ZIP.
+                Drop the files into your Obsidian vault to start working with your AI agents.
+              </p>
+            </div>
+          )}
+
+          {/* Notion CSV info */}
+          {format === "notion-csv" && (
+            <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+              <p className="text-xs text-muted-foreground">
+                <strong>How to import into Notion:</strong> Open any Notion page → click "..." → "Import" → select "CSV" → upload this file.
+                Each highlight becomes a page with Title, Tags, Topics, Source URL, and Date columns.
+                For live sync, connect Notion in Settings instead.
+              </p>
+            </div>
+          )}
+
           <Button className="w-full" onClick={handleExport} disabled={isLoading}>
             {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-            Download {format === "json" ? "JSON" : "Markdown"}
+            {format === "obsidian" ? `Download ZIP (grouped by ${groupBy})` : `Download ${FORMAT_INFO[format].label}`}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Import Modal (Twitter bookmarks, Reddit saved, JSON/CSV) ─────────────────
+
+type ImportSource = "twitter" | "reddit" | "json" | "csv";
+
+function ImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [source, setSource] = useState<ImportSource>("twitter");
+  const [file, setFile] = useState<File | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [preview, setPreview] = useState<Array<{ text: string; sourceUrl: string; pageTitle: string }>>([]);
+  const [result, setResult] = useState<{ imported: number; skipped: number; total: number } | null>(null);
+
+  const parseFile = async (f: File) => {
+    const text = await f.text();
+    let items: Array<{ text: string; sourceUrl: string; pageTitle?: string; domain?: string; notes?: string }> = [];
+
+    if (source === "twitter") {
+      // Twitter data export: can be in multiple formats
+      try {
+        const data = JSON.parse(text);
+        // Twitter data archive format: array of tweet objects or bookmarks
+        const tweets = Array.isArray(data)
+          ? data
+          : data.data || data.bookmarks || data.tweets || [];
+
+        for (const tweet of tweets) {
+          // Handle various Twitter export formats
+          const tweetData = tweet.tweet || tweet;
+          const tweetText = tweetData.full_text || tweetData.text || tweetData.content || "";
+          if (!tweetText || tweetText.length < 5) continue;
+
+          // Extract URLs from tweet
+          const urls = tweetData.entities?.urls || [];
+          const expandedUrl = urls[0]?.expanded_url || urls[0]?.url || "";
+          const tweetUrl = tweetData.id_str || tweetData.id
+            ? `https://x.com/i/status/${tweetData.id_str || tweetData.id}`
+            : expandedUrl || "https://x.com";
+
+          const author = tweetData.user?.screen_name || tweetData.author?.username || tweetData.username || "";
+
+          items.push({
+            text: tweetText,
+            sourceUrl: tweetUrl,
+            pageTitle: author ? `@${author} on X` : "X/Twitter Bookmark",
+            domain: "x.com",
+            notes: expandedUrl ? `Linked: ${expandedUrl}` : undefined,
+          });
+        }
+      } catch {
+        // Fallback: try line-by-line (user may have a simple text export)
+        for (const line of text.split("\n").filter(Boolean)) {
+          if (line.trim().length > 5) {
+            items.push({
+              text: line.trim(),
+              sourceUrl: "https://x.com",
+              pageTitle: "X/Twitter Bookmark",
+              domain: "x.com",
+            });
+          }
+        }
+      }
+    } else if (source === "reddit") {
+      // Reddit data export: saved_posts.csv, saved_comments.csv, or JSON
+      try {
+        const data = JSON.parse(text);
+        const posts = Array.isArray(data) ? data : data.data || data.saved || data.children?.map((c: any) => c.data) || [];
+        for (const post of posts) {
+          const postData = post.data || post;
+          const postText = postData.selftext || postData.body || postData.title || postData.link_title || "";
+          if (!postText || postText.length < 5) continue;
+
+          const permalink = postData.permalink
+            ? `https://reddit.com${postData.permalink}`
+            : postData.url || "https://reddit.com";
+          const subreddit = postData.subreddit || postData.subreddit_name_prefixed || "";
+          const title = postData.title || postData.link_title || "";
+
+          items.push({
+            text: postText.slice(0, 50000),
+            sourceUrl: permalink,
+            pageTitle: title || `r/${subreddit} post`,
+            domain: "reddit.com",
+            notes: subreddit ? `Subreddit: r/${subreddit}` : undefined,
+          });
+        }
+      } catch {
+        // Try CSV parsing (Reddit CSV export)
+        const lines = text.split("\n");
+        const header = lines[0]?.toLowerCase() || "";
+        const isCSV = header.includes("id") || header.includes("permalink") || header.includes("body");
+        if (isCSV) {
+          for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(",");
+            if (cols.length >= 2) {
+              const permalink = cols.find(c => c.includes("reddit.com")) || "https://reddit.com";
+              const bodyText = cols.slice(1).join(",").replace(/^"|"$/g, "");
+              if (bodyText.length > 5) {
+                items.push({
+                  text: bodyText,
+                  sourceUrl: permalink.replace(/^"|"$/g, ""),
+                  pageTitle: "Reddit Saved Post",
+                  domain: "reddit.com",
+                });
+              }
+            }
+          }
+        } else {
+          // Plain text fallback
+          for (const line of text.split("\n").filter(Boolean)) {
+            if (line.trim().length > 5) {
+              items.push({
+                text: line.trim(),
+                sourceUrl: "https://reddit.com",
+                pageTitle: "Reddit Saved Post",
+                domain: "reddit.com",
+              });
+            }
+          }
+        }
+      }
+    } else if (source === "json") {
+      // Generic JSON import
+      try {
+        const data = JSON.parse(text);
+        const arr = Array.isArray(data) ? data : data.items || data.highlights || [data];
+        for (const item of arr) {
+          if (item.text && item.text.length > 0) {
+            items.push({
+              text: item.text,
+              sourceUrl: item.sourceUrl || item.url || item.source_url || item.link || "https://import.mindpalace/json",
+              pageTitle: item.pageTitle || item.title || item.page_title || "",
+              domain: item.domain || "",
+              notes: item.notes || item.note || "",
+            });
+          }
+        }
+      } catch {
+        toast.error("Invalid JSON file");
+        return;
+      }
+    } else if (source === "csv") {
+      // Generic CSV import (expects: text, sourceUrl, pageTitle, notes)
+      const lines = text.split("\n");
+      for (let i = 1; i < lines.length; i++) {
+        // Simple CSV parse (handles quoted fields)
+        const match = lines[i].match(/(?:"([^"]*(?:""[^"]*)*)"|([^,]*))/g);
+        if (match && match.length >= 1) {
+          const clean = (s: string) => s.replace(/^"|"$/g, "").replace(/""/g, '"').trim();
+          const row = match.map(clean);
+          if (row[0] && row[0].length > 0) {
+            items.push({
+              text: row[0],
+              sourceUrl: row[1] || "https://import.mindpalace/csv",
+              pageTitle: row[2] || "",
+              notes: row[3] || "",
+            });
+          }
+        }
+      }
+    }
+
+    // Deduplicate and limit
+    items = items.slice(0, 500);
+    setPreview(items.slice(0, 10).map(i => ({ text: i.text.slice(0, 200), sourceUrl: i.sourceUrl, pageTitle: i.pageTitle || "" })));
+    return items;
+  };
+
+  const handleImport = async () => {
+    if (!file) { toast.error("Please select a file"); return; }
+    setIsLoading(true);
+    setResult(null);
+    try {
+      const items = await parseFile(file);
+      if (!items || items.length === 0) {
+        toast.error("No importable items found in file");
+        setIsLoading(false);
+        return;
+      }
+
+      const res = await fetch("/api/highlights?action=import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ source, items }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setResult({ imported: data.imported, skipped: data.skipped, total: data.total });
+        toast.success(data.message);
+        onImported();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Import failed");
+      }
+    } catch (err) {
+      toast.error("Import failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) {
+      setFile(f);
+      setResult(null);
+      // Auto-preview
+      const items = await parseFile(f);
+      if (items && items.length > 0) {
+        setPreview(items.slice(0, 5).map(i => ({
+          text: i.text.slice(0, 150) + (i.text.length > 150 ? "..." : ""),
+          sourceUrl: i.sourceUrl,
+          pageTitle: i.pageTitle || "",
+        })));
+      }
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-lg bg-card border-border">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-foreground">
+            <Plus className="w-4 h-4 text-primary" />
+            Import Highlights
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Import highlights from Twitter/X bookmarks, Reddit saved posts, or any JSON/CSV file.
+          </p>
+
+          {/* Source selection */}
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { id: "twitter" as ImportSource, label: "X / Twitter", desc: "Bookmarks export" },
+              { id: "reddit" as ImportSource, label: "Reddit", desc: "Saved posts export" },
+              { id: "json" as ImportSource, label: "JSON File", desc: "Generic highlight data" },
+              { id: "csv" as ImportSource, label: "CSV File", desc: "Spreadsheet format" },
+            ]).map((s) => (
+              <button
+                key={s.id}
+                onClick={() => { setSource(s.id); setFile(null); setPreview([]); setResult(null); }}
+                className={`p-3 rounded-lg border text-left text-sm font-medium transition-all ${
+                  source === s.id
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-secondary/30 text-muted-foreground hover:border-primary/30"
+                }`}
+              >
+                {s.label}
+                <p className="text-xs font-normal mt-0.5 opacity-70">{s.desc}</p>
+              </button>
+            ))}
+          </div>
+
+          {/* Instructions */}
+          <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+            {source === "twitter" && (
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p><strong>How to get your Twitter/X bookmarks:</strong></p>
+                <ol className="list-decimal ml-4 space-y-0.5">
+                  <li>Go to <a href="https://x.com/settings/download_your_data" target="_blank" rel="noreferrer" className="underline text-primary">x.com/settings/download_your_data</a></li>
+                  <li>Request your archive and wait for the email</li>
+                  <li>Download and unzip → find <code className="font-mono bg-secondary px-1 rounded">data/like.js</code> or <code className="font-mono bg-secondary px-1 rounded">data/bookmark.js</code></li>
+                  <li>Remove the first line (<code className="font-mono bg-secondary px-1 rounded">window.YTD.like.part0 =</code>) to make it valid JSON</li>
+                  <li>Upload the resulting JSON file here</li>
+                </ol>
+              </div>
+            )}
+            {source === "reddit" && (
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p><strong>How to get your Reddit saved posts:</strong></p>
+                <ol className="list-decimal ml-4 space-y-0.5">
+                  <li>Go to <a href="https://www.reddit.com/settings/data-request" target="_blank" rel="noreferrer" className="underline text-primary">reddit.com/settings/data-request</a></li>
+                  <li>Request your data and wait for the email</li>
+                  <li>Download and unzip → find <code className="font-mono bg-secondary px-1 rounded">saved_posts.csv</code> or <code className="font-mono bg-secondary px-1 rounded">saved_comments.csv</code></li>
+                  <li>Upload the file here</li>
+                </ol>
+                <p className="mt-1">Or use a tool like <a href="https://github.com/aliparlakci/bulk-downloader-for-reddit" target="_blank" rel="noreferrer" className="underline text-primary">reddit-saved-exporter</a> to export as JSON.</p>
+              </div>
+            )}
+            {source === "json" && (
+              <p className="text-xs text-muted-foreground">
+                Upload a JSON file with an array of objects. Each object should have at minimum a <code className="font-mono bg-secondary px-1 rounded">text</code> field.
+                Optional fields: <code className="font-mono bg-secondary px-1 rounded">sourceUrl</code>, <code className="font-mono bg-secondary px-1 rounded">pageTitle</code>, <code className="font-mono bg-secondary px-1 rounded">notes</code>.
+              </p>
+            )}
+            {source === "csv" && (
+              <p className="text-xs text-muted-foreground">
+                Upload a CSV with columns: <code className="font-mono bg-secondary px-1 rounded">text, sourceUrl, pageTitle, notes</code> (first row = header).
+              </p>
+            )}
+          </div>
+
+          {/* File upload */}
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Choose file</label>
+            <input
+              type="file"
+              accept={source === "csv" ? ".csv,.txt" : source === "json" ? ".json,.js" : ".json,.csv,.txt,.js"}
+              onChange={handleFileChange}
+              className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border file:border-border file:text-sm file:font-medium file:bg-secondary file:text-foreground hover:file:bg-secondary/80 file:cursor-pointer"
+            />
+          </div>
+
+          {/* Preview */}
+          {preview.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Preview ({preview.length} of {file ? "..." : "0"} items):</p>
+              <div className="max-h-32 overflow-y-auto space-y-1 p-2 rounded-lg bg-secondary/20 border border-border/30">
+                {preview.map((p, i) => (
+                  <div key={i} className="text-xs text-muted-foreground truncate">
+                    <span className="text-foreground font-medium">{i + 1}.</span>{" "}
+                    {p.pageTitle && <span className="text-primary">[{p.pageTitle}] </span>}
+                    {p.text}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Result */}
+          {result && (
+            <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+              <p className="text-sm text-green-400 font-medium">
+                <Check className="inline w-4 h-4 mr-1" />
+                Imported {result.imported} of {result.total} highlights
+                {result.skipped > 0 && <span className="text-muted-foreground"> ({result.skipped} skipped)</span>}
+              </p>
+            </div>
+          )}
+
+          <Button className="w-full" onClick={handleImport} disabled={isLoading || !file}>
+            {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+            {isLoading ? "Importing..." : `Import from ${source === "twitter" ? "X/Twitter" : source === "reddit" ? "Reddit" : source.toUpperCase()}`}
           </Button>
         </div>
       </DialogContent>
@@ -642,6 +1083,7 @@ export default function MindPalace() {
   const [selectedDomain, setSelectedDomain] = useState<string | undefined>();
   const [selectedHighlightId, setSelectedHighlightId] = useState<number | null>(null);
   const [showExport, setShowExport] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [showNewTag, setShowNewTag] = useState(false);
   const [offset, setOffset] = useState(0);
   const [confirmDeleteTag, setConfirmDeleteTag] = useState<{ id: number; name: string } | null>(null);
@@ -899,6 +1341,13 @@ export default function MindPalace() {
         {/* Bottom actions */}
         <div className="p-3 border-t border-border space-y-1">
           <button
+            onClick={() => setShowImport(true)}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm hover:bg-sidebar-accent transition-colors text-sidebar-foreground"
+          >
+            <Upload className="w-4 h-4" />
+            Import
+          </button>
+          <button
             onClick={() => setShowExport(true)}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm hover:bg-sidebar-accent transition-colors text-sidebar-foreground"
           >
@@ -1089,6 +1538,7 @@ export default function MindPalace() {
         />
       )}
       {showExport && <ExportModal onClose={() => setShowExport(false)} />}
+      {showImport && <ImportModal onClose={() => setShowImport(false)} onImported={() => { fetchHighlights(); fetchDomainStats(); fetchMetadataTags(); }} />}
       {showNewTag && <NewTagModal onClose={() => setShowNewTag(false)} onCreated={() => fetchTags()} />}
       <ConfirmDialog
         open={confirmDeleteTag !== null}

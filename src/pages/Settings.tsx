@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Check,
   Copy,
+  ExternalLink,
   Highlighter,
   Key,
   Loader2,
@@ -17,6 +18,7 @@ import {
   Send,
   Sun,
   Trash2,
+  Unlink,
   Wifi,
   WifiOff,
   Zap,
@@ -168,6 +170,232 @@ function useTokens() {
   };
 
   return { tokens, loading, createToken, deleteToken, refetch: fetchTokens };
+}
+
+// ─── Notion Integration Settings ──────────────────────────────────────────────
+
+function NotionSettings() {
+  const [notionToken, setNotionToken] = useState("");
+  const [notionDbId, setNotionDbId] = useState("");
+  const [connected, setConnected] = useState(false);
+  const [maskedToken, setMaskedToken] = useState<string | null>(null);
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ synced: number; errors: number; total: number } | null>(null);
+
+  // Load current state
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          setConnected(!!data.notionConnected);
+          setMaskedToken(data.notionToken || null);
+          setNotionDbId(data.notionDatabaseId || "");
+          setLastSync(data.notionLastSync || null);
+        }
+      } catch {}
+    })();
+  }, []);
+
+  const handleSave = async () => {
+    if (!notionToken.trim() || !notionDbId.trim()) {
+      toast.error("Both integration token and database ID are required");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ notionToken: notionToken.trim(), notionDatabaseId: notionDbId.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setConnected(!!data.notionConnected);
+        setMaskedToken(data.notionToken || null);
+        setNotionToken(""); // Clear the input (it's now saved)
+        toast.success("Notion connected!");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to save");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ notionToken: null, notionDatabaseId: null }),
+      });
+      if (res.ok) {
+        setConnected(false);
+        setMaskedToken(null);
+        setNotionToken("");
+        setNotionDbId("");
+        setLastSync(null);
+        setSyncResult(null);
+        toast.success("Notion disconnected");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/highlights?action=notion-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSyncResult({ synced: data.synced, errors: data.errors, total: data.total });
+        setLastSync(new Date().toISOString());
+        toast.success(data.message);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Sync failed");
+      }
+    } catch {
+      toast.error("Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <section>
+      <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+        <ExternalLink className="w-5 h-5 text-primary" />
+        Notion Integration
+      </h2>
+      <div className="p-5 rounded-xl bg-card border border-border space-y-4">
+        {connected ? (
+          <>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
+                <Check className="w-4 h-4 text-green-500" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-sm">Notion Connected</p>
+                <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                  Token: {maskedToken || "•••"}
+                </p>
+                {lastSync && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Last sync: {new Date(lastSync).toLocaleString()}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDisconnect}
+                disabled={saving}
+                className="text-destructive hover:text-destructive"
+              >
+                <Unlink className="w-3.5 h-3.5 mr-1" />
+                Disconnect
+              </Button>
+            </div>
+
+            <Button className="w-full" onClick={handleSync} disabled={syncing}>
+              {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+              {syncing ? "Syncing..." : "Sync All Highlights to Notion"}
+            </Button>
+
+            {syncResult && (
+              <div className={`p-3 rounded-lg text-sm ${syncResult.errors > 0 ? "bg-yellow-500/10 border border-yellow-500/20 text-yellow-400" : "bg-green-500/10 border border-green-500/20 text-green-400"}`}>
+                Synced {syncResult.synced} of {syncResult.total} highlights
+                {syncResult.errors > 0 && ` (${syncResult.errors} failed)`}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Connect Notion to sync your highlights directly into a Notion database.
+              Each highlight becomes a page with tags, topics, source, and date.
+            </p>
+            <div className="p-3 rounded-lg bg-secondary/30 border border-border/50 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Setup steps:</p>
+              <ol className="text-xs text-muted-foreground list-decimal ml-4 space-y-1">
+                <li>
+                  Go to{" "}
+                  <a href="https://www.notion.so/my-integrations" target="_blank" rel="noreferrer" className="underline text-primary">
+                    notion.so/my-integrations
+                  </a>{" "}
+                  and create an integration. Copy the <strong>Internal Integration Secret</strong>.
+                </li>
+                <li>
+                  Create a database in Notion with these properties:{" "}
+                  <code className="font-mono bg-secondary px-1 rounded">Title</code> (title),{" "}
+                  <code className="font-mono bg-secondary px-1 rounded">Source URL</code> (URL),{" "}
+                  <code className="font-mono bg-secondary px-1 rounded">Domain</code> (text),{" "}
+                  <code className="font-mono bg-secondary px-1 rounded">Tags</code> (multi-select),{" "}
+                  <code className="font-mono bg-secondary px-1 rounded">Topics</code> (multi-select),{" "}
+                  <code className="font-mono bg-secondary px-1 rounded">Date Saved</code> (date).
+                </li>
+                <li>
+                  Share the database with your integration (click "..." → "Add connections" → select your integration).
+                </li>
+                <li>
+                  Copy the database ID from the URL: <code className="font-mono bg-secondary px-1 rounded text-[10px]">notion.so/[workspace]/[<strong>database-id</strong>]?v=...</code>
+                </li>
+              </ol>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  Notion Integration Token
+                </label>
+                <Input
+                  value={notionToken}
+                  onChange={(e) => setNotionToken(e.target.value)}
+                  placeholder="ntn_..."
+                  className="font-mono text-xs"
+                  type="password"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  Notion Database ID
+                </label>
+                <Input
+                  value={notionDbId}
+                  onChange={(e) => setNotionDbId(e.target.value)}
+                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  className="font-mono text-xs"
+                />
+              </div>
+              <Button className="w-full" onClick={handleSave} disabled={saving || !notionToken || !notionDbId}>
+                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ExternalLink className="w-4 h-4 mr-2" />}
+                {saving ? "Saving..." : "Connect Notion"}
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </section>
+  );
 }
 
 export default function Settings() {
@@ -400,6 +628,9 @@ export default function Settings() {
             </div>
           </div>
         </section>
+
+        {/* Notion Integration */}
+        <NotionSettings />
 
         {/* API Tokens */}
         <section>
