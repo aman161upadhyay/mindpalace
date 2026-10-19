@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Resend } from "resend";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "../../src/lib/db";
 import { users, highlights } from "../../src/schema";
 
@@ -98,7 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const randomHighlights = await db
         .select()
         .from(highlights)
-        .where(eq(highlights.userId, user.id))
+        .where(and(eq(highlights.userId, user.id), isNull(highlights.deletedAt)))
         .orderBy(sql`RANDOM()`)
         .limit(5);
 

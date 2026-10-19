@@ -18,6 +18,9 @@
     }
   ],
   "rewrites": [
+    { "source": "/api/extension/save", "destination": "/api/extension" },
+    { "source": "/api/extension/recent", "destination": "/api/extension" },
+    { "source": "/api/highlights/:id(\\d+)", "destination": "/api/highlights?id=:id" },
     { "source": "/api/tags/:id", "destination": "/api/tags?id=:id" },
     { "source": "/api/tokens/:id", "destination": "/api/tokens?id=:id" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
