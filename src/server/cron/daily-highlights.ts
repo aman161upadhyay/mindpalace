@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Resend } from "resend";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { db } from "../../src/lib/db";
-import { users, highlights } from "../../src/schema";
+import { db } from "../../lib/db";
+import { users, highlights } from "../../schema";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 

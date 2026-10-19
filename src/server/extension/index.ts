@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { db } from "../../src/lib/db";
-import { apiTokens, highlights } from "../../src/schema";
-import { inferTags } from "../../src/lib/keyword-tags";
-import { applyCors } from "../../src/lib/cors";
-import { rateLimit, getClientIp } from "../../src/lib/rate-limit";
+import { db } from "../../lib/db";
+import { apiTokens, highlights } from "../../schema";
+import { inferTags } from "../../lib/keyword-tags";
+import { applyCors } from "../../lib/cors";
+import { rateLimit, getClientIp } from "../../lib/rate-limit";
 
 // Single function for the extension: GET = recent highlights, POST = save.
 // /api/extension/recent and /api/extension/save are rewritten here (see vercel.json).

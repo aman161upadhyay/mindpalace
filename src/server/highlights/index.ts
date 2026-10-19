@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { and, desc, eq, ilike, isNotNull, isNull, like, or, sql } from "drizzle-orm";
-import { db } from "../../src/lib/db";
-import { highlights, tags, users } from "../../src/schema";
-import { getAuthUserIdFromVercelReq } from "../../src/lib/auth";
-import { applyCors } from "../../src/lib/cors";
-import { rateLimit, getClientIp } from "../../src/lib/rate-limit";
-import { inferTags } from "../../src/lib/keyword-tags";
+import { db } from "../../lib/db";
+import { highlights, tags, users } from "../../schema";
+import { getAuthUserIdFromVercelReq } from "../../lib/auth";
+import { applyCors } from "../../lib/cors";
+import { rateLimit, getClientIp } from "../../lib/rate-limit";
+import { inferTags } from "../../lib/keyword-tags";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (applyCors(req, res)) return;

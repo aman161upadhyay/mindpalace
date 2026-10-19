@@ -8,11 +8,12 @@
     "skipLibCheck": true,
     "jsx": "react-jsx",
     "outDir": "dist-api",
-    "rootDir": ".",
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    "rootDir": "."
   },
-  "include": ["api/**/*.ts", "src/lib/**/*.ts", "src/schema.ts"]
+  "include": [
+    "api/**/*.ts",
+    "src/server/**/*.ts",
+    "src/lib/**/*.ts",
+    "src/schema.ts"
+  ]
 }

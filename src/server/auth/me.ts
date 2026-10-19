@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { eq } from "drizzle-orm";
-import { db } from "../../src/lib/db";
-import { users, apiTokens } from "../../src/schema";
-import { verifyJwt } from "../../src/lib/auth";
-import { applyCors } from "../../src/lib/cors";
+import { db } from "../../lib/db";
+import { users, apiTokens } from "../../schema";
+import { verifyJwt } from "../../lib/auth";
+import { applyCors } from "../../lib/cors";
 
 function parseCookies(cookieHeader: string): Record<string, string> {
   const cookies: Record<string, string> = {};

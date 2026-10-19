@@ -2,11 +2,11 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import { eq } from "drizzle-orm";
-import { db } from "../../src/lib/db";
-import { users, apiTokens } from "../../src/schema";
-import { signJwt, setSessionCookie } from "../../src/lib/auth";
-import { applyCors } from "../../src/lib/cors";
-import { rateLimit, getClientIp } from "../../src/lib/rate-limit";
+import { db } from "../../lib/db";
+import { users, apiTokens } from "../../schema";
+import { signJwt, setSessionCookie } from "../../lib/auth";
+import { applyCors } from "../../lib/cors";
+import { rateLimit, getClientIp } from "../../lib/rate-limit";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (applyCors(req, res)) return;
