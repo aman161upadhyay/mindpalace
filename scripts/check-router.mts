@@ -13,9 +13,8 @@ const cases: [string, any][] = [
   ["tags/7", { key: "tags", id: "7" }],
   ["tokens/9", { key: "tokens", id: "9" }],
   ["tags", { key: "tags" }],
-  ["chat", { key: "chat" }],
   ["/api/highlights?id=5", { key: "highlights" }],
-  ["", null], ["nope", null], ["auth", null], ["auth/nope", null], ["chat/1", null],
+  ["", null], ["nope", null], ["chat", null], ["auth", null], ["auth/nope", null], ["chat/1", null],
   ["highlights/1/2", null], ["extension/other", null], ["__proto__", null], ["constructor", null], ["auth/login/extra", null],
 ];
 let bad = 0;
@@ -27,7 +26,7 @@ for (const [input, want] of cases) {
 console.log(bad === 0 ? `all ${cases.length} route cases pass` : `${bad} failures`);
 
 // 2) every handler module loads, and the real entry point routes requests
-const keys = ["auth/login","auth/logout","auth/me","auth/register","auth/reset-password","cron/daily-highlights","chat","extension","highlights","tags","tokens"];
+const keys = ["auth/login","auth/logout","auth/me","auth/register","auth/reset-password","cron/daily-highlights","extension","highlights","tags","tokens"];
 for (const k of keys) {
   try { const m = await ((router as any).loadHandler ?? (router as any).default.loadHandler)(k); if (typeof m.default !== "function") throw new Error("no default export"); }
   catch (e) { bad++; console.log("LOAD FAIL", k, String(e).slice(0, 200)); }

@@ -389,7 +389,27 @@
   // ─── Website ↔ Extension Bridge (DOM Custom Events) ──────────────────────────
   // The Settings page on the web app uses these events to read/write extension config.
 
+  // Only the Mind Palace dashboard may talk to this bridge. Any other web page could otherwise
+  // read the API token or point the extension at a server it controls.
+  const TRUSTED_DASHBOARD_ORIGINS = [
+    "https://themindpalace.org",
+    "https://www.themindpalace.org",
+    "https://mindpalace-bice.vercel.app",
+    "https://mindpalace-amanupadhyay.vercel.app",
+  ];
+  function isTrustedOrigin(origin) {
+    return TRUSTED_DASHBOARD_ORIGINS.includes(origin) ||
+      /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  }
+  function trustedDashboardUrl(url) {
+    try {
+      const origin = new URL(url).origin;
+      return isTrustedOrigin(origin) ? origin : "";
+    } catch (_) { return ""; }
+  }
+
   document.addEventListener("HC_GET_SETTINGS", () => {
+    if (!isTrustedOrigin(window.location.origin)) return;
     try {
       chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (response) => {
         if (chrome.runtime.lastError) return;
@@ -404,10 +424,11 @@
   });
 
   document.addEventListener("HC_SAVE_SETTINGS", (e) => {
+    if (!isTrustedOrigin(window.location.origin)) return;
     const detail = (e && e.detail) || {};
     try {
       chrome.runtime.sendMessage(
-        { type: "SAVE_SETTINGS", apiToken: detail.apiToken || "", dashboardUrl: detail.dashboardUrl || "" },
+        { type: "SAVE_SETTINGS", apiToken: detail.apiToken || "", dashboardUrl: trustedDashboardUrl(detail.dashboardUrl || "") },
         (response) => {
           if (chrome.runtime.lastError) return;
           document.dispatchEvent(new CustomEvent("HC_SETTINGS_SAVED", {

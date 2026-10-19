@@ -12,7 +12,6 @@ const LOADERS: Record<string, Loader> = {
   "auth/register": () => import("./auth/register"),
   "auth/reset-password": () => import("./auth/reset-password"),
   "cron/daily-highlights": () => import("./cron/daily-highlights"),
-  chat: () => import("./chat/index"),
   extension: () => import("./extension/index"),
   highlights: () => import("./highlights/index"),
   tags: () => import("./tags/index"),
