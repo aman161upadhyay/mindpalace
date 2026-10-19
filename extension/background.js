@@ -14,6 +14,17 @@ function getSettings() {
   });
 }
 
+// If the saved server address now redirects to a new home, remember the new one.
+function rememberRedirect(response, currentUrl) {
+  try {
+    if (!response.redirected) return;
+    const next = new URL(response.url);
+    if (next.protocol === "https:" && next.origin !== new URL(currentUrl).origin) {
+      chrome.storage.sync.set({ dashboardUrl: next.origin });
+    }
+  } catch (_) {}
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   // Remove any existing context menu items first to avoid "duplicate id" errors
   chrome.contextMenus.removeAll(() => {
@@ -110,6 +121,8 @@ async function handleSaveHighlight(payload) {
     }),
   });
 
+  rememberRedirect(response, dashboardUrl);
+
   if (!response.ok) {
     let errText = "";
     try { errText = await response.text(); } catch (_) {}
@@ -130,10 +143,14 @@ async function handleGetRecent() {
     const { apiToken, dashboardUrl } = await getSettings();
     if (!apiToken) return [];
     
-    const response = await fetch(
-      `${dashboardUrl}/api/extension/recent`,
-      { method: "GET", headers: { "Authorization": `Bearer ${apiToken}` } }
-    );
+    const headers = { "Authorization": `Bearer ${apiToken}` };
+    let response = await fetch(`${dashboardUrl}/api/extension/recent`, { method: "GET", headers });
+    // Browsers drop Authorization on cross-origin redirects, so retry once at the new address.
+    if (response.redirected && response.status === 401) {
+      const newOrigin = new URL(response.url).origin;
+      response = await fetch(`${newOrigin}/api/extension/recent`, { method: "GET", headers });
+    }
+    rememberRedirect(response, dashboardUrl);
     if (!response.ok) return [];
     return await response.json();
   } catch (_) {
