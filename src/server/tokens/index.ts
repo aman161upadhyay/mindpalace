@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { and, desc, eq } from "drizzle-orm";
 import { randomBytes } from "crypto";
-import { db } from "../../src/lib/db";
-import { apiTokens } from "../../src/schema";
-import { getAuthUserIdFromVercelReq } from "../../src/lib/auth";
-import { applyCors } from "../../src/lib/cors";
+import { db } from "../../lib/db";
+import { apiTokens } from "../../schema";
+import { getAuthUserIdFromVercelReq } from "../../lib/auth";
+import { applyCors } from "../../lib/cors";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (applyCors(req, res)) return;

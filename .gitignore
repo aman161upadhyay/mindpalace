@@ -30,3 +30,13 @@ dist-ssr
 .superpowers/
 .vercel
 .env*.local
+.env*
+
+# Secrets, local tooling and private notes — never commit
+agentlanggraph-*.json
+*.zip
+*.zip.zip
+DSAIL Exam/
+dist-extension/
+.claude/settings.local.json
+docs/DOMAIN_MIGRATION_CONTEXT.md

@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { and, desc, eq, ilike, like, or, sql } from "drizzle-orm";
-import { db } from "../../src/lib/db";
-import { highlights, tags, users } from "../../src/schema";
-import { getAuthUserIdFromVercelReq } from "../../src/lib/auth";
-import { applyCors } from "../../src/lib/cors";
-import { rateLimit, getClientIp } from "../../src/lib/rate-limit";
-import { inferTags } from "../../src/lib/keyword-tags";
+import { and, desc, eq, ilike, isNotNull, isNull, like, or, sql } from "drizzle-orm";
+import { db } from "../../lib/db";
+import { highlights, tags, users } from "../../schema";
+import { getAuthUserIdFromVercelReq } from "../../lib/auth";
+import { applyCors } from "../../lib/cors";
+import { rateLimit, getClientIp } from "../../lib/rate-limit";
+import { inferTags } from "../../lib/keyword-tags";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (applyCors(req, res)) return;
@@ -30,6 +30,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .limit(1);
         if (existing.length === 0) return res.status(404).json({ error: "Highlight not found" });
         return res.status(200).json(existing[0]);
+      }
+
+      if (req.method === "PATCH" && action === "restore") {
+        const existing = await db
+          .select({ id: highlights.id })
+          .from(highlights)
+          .where(and(eq(highlights.id, id), eq(highlights.userId, userId)))
+          .limit(1);
+        if (existing.length === 0) return res.status(404).json({ error: "Highlight not found" });
+        await db.update(highlights)
+          .set({ deletedAt: null })
+          .where(and(eq(highlights.id, id), eq(highlights.userId, userId)));
+        return res.status(200).json({ success: true });
       }
 
       if (req.method === "PATCH") {
@@ -64,17 +77,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       if (req.method === "DELETE") {
+        const purge = action === "purge";
         const existing = await db
           .select({ id: highlights.id })
           .from(highlights)
           .where(and(eq(highlights.id, id), eq(highlights.userId, userId)))
           .limit(1);
         if (existing.length === 0) return res.status(404).json({ error: "Highlight not found" });
-        await db.delete(highlights).where(and(eq(highlights.id, id), eq(highlights.userId, userId)));
+
+        if (purge) {
+          // Permanent delete: only rows already in the trash, so a stray request can't erase a live highlight.
+          const removed = await db
+            .delete(highlights)
+            .where(and(eq(highlights.id, id), eq(highlights.userId, userId), isNotNull(highlights.deletedAt)))
+            .returning({ id: highlights.id });
+          if (removed.length === 0) return res.status(409).json({ error: "Highlight must be in the trash before it can be deleted permanently" });
+        } else {
+          // Soft delete — move to trash
+          await db.update(highlights)
+            .set({ deletedAt: new Date() })
+            .where(and(eq(highlights.id, id), eq(highlights.userId, userId)));
+        }
         return res.status(200).json({ success: true });
       }
 
       return res.status(405).json({ error: "Method not allowed for highlight ID endpoint" });
+    }
+
+    // ── GET ?action=trash ─────────────────────────────────────────────────
+    if (req.method === "GET" && action === "trash") {
+      const items = await db
+        .select()
+        .from(highlights)
+        .where(and(eq(highlights.userId, userId), isNotNull(highlights.deletedAt)))
+        .orderBy(desc(highlights.deletedAt));
+      return res.status(200).json(items);
     }
 
     // ── GET ?action=metadata-tags ─────────────────────────────────────────
@@ -82,7 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const rows = await db
         .select({ metadataTags: highlights.metadataTags })
         .from(highlights)
-        .where(eq(highlights.userId, userId));
+        .where(and(eq(highlights.userId, userId), isNull(highlights.deletedAt)));
       const tagSet = new Set<string>();
       for (const row of rows) {
         try {
@@ -98,7 +135,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const stats = await db
         .select({ domain: highlights.domain, count: sql<number>`count(*)` })
         .from(highlights)
-        .where(eq(highlights.userId, userId))
+        .where(and(eq(highlights.userId, userId), isNull(highlights.deletedAt)))
         .groupBy(highlights.domain)
         .orderBy(desc(sql`count(*)`))
         .limit(20);
@@ -114,7 +151,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: `Format must be one of: ${validFormats.join(", ")}` });
 
       const [allHighlights, allTags] = await Promise.all([
-        db.select().from(highlights).where(eq(highlights.userId, userId)).orderBy(desc(highlights.createdAt)),
+        db.select().from(highlights).where(and(eq(highlights.userId, userId), isNull(highlights.deletedAt))).orderBy(desc(highlights.createdAt)),
         db.select().from(tags).where(eq(tags.userId, userId)),
       ]);
 
@@ -277,7 +314,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Fetch highlights to sync (all, or could be filtered)
       const filterMetadataTag = req.body?.metadataTag as string | undefined;
       const filterTagId = req.body?.tagId as number | undefined;
-      const conditions = [eq(highlights.userId, userId)];
+      const conditions = [eq(highlights.userId, userId), isNull(highlights.deletedAt)];
       if (filterMetadataTag) conditions.push(like(highlights.metadataTags, `%"${filterMetadataTag}"%`));
       if (filterTagId) {
         conditions.push(
@@ -348,7 +385,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ── POST ?action=import — Bulk import highlights from Twitter/Reddit/JSON ──
     if (req.method === "POST" && action === "import") {
       const ip = getClientIp(req.headers);
-      const { allowed } = rateLimit(ip, { windowMs: 60_000, max: 10 });
+      const { allowed } = rateLimit(`import:${ip}`, { windowMs: 60_000, max: 10 });
       if (!allowed) return res.status(429).json({ error: "Too many requests" });
 
       const source = (req.body?.source as string) || "manual";
@@ -409,7 +446,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const limit = 30;
       const offset = (page - 1) * limit;
 
-      const conditions = [eq(highlights.userId, userId)];
+      const conditions = [eq(highlights.userId, userId), isNull(highlights.deletedAt)];
 
       if (search) {
         const escapedSearch = search.replace(/[%_\\]/g, (c) => `\\${c}`);
@@ -469,7 +506,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ── POST (create) ──────────────────────────────────────────────────────
     if (req.method === "POST") {
       const ip = getClientIp(req.headers);
-      const { allowed } = rateLimit(ip, { windowMs: 60_000, max: 60 });
+      const { allowed } = rateLimit(`hl-create:${ip}`, { windowMs: 60_000, max: 60 });
       if (!allowed) return res.status(429).json({ error: "Too many requests, please try again later" });
       const { text, sourceUrl, pageTitle, domain } = req.body ?? {};
 

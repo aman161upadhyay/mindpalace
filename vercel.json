@@ -1,5 +1,4 @@
 {
-  "name": "mindpalace",
   "crons": [
     {
       "path": "/api/cron/daily-highlights",
@@ -10,17 +9,79 @@
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "https://mindpalace-amanupadhyay.vercel.app" },
-        { "key": "Access-Control-Allow-Credentials", "value": "true" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PATCH, DELETE, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://themindpalace.org"
+        },
+        {
+          "key": "Access-Control-Allow-Credentials",
+          "value": "true"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PATCH, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization"
+        }
       ]
     }
   ],
+  "redirects": [
+    {
+      "source": "/((?!api/cron/).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "mindpalace-bice.vercel.app"
+        }
+      ],
+      "destination": "https://themindpalace.org/$1",
+      "permanent": true
+    },
+    {
+      "source": "/((?!api/cron/).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "mindpalace-amanupadhyay.vercel.app"
+        }
+      ],
+      "destination": "https://themindpalace.org/$1",
+      "permanent": true
+    },
+    {
+      "source": "/((?!api/cron/).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "mindpalace-amanrupadhyay-2976-amanupadhyay.vercel.app"
+        }
+      ],
+      "destination": "https://themindpalace.org/$1",
+      "permanent": true
+    },
+    {
+      "source": "/((?!api/cron/).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.themindpalace.org"
+        }
+      ],
+      "destination": "https://themindpalace.org/$1",
+      "permanent": true
+    }
+  ],
   "rewrites": [
-    { "source": "/api/tags/:id", "destination": "/api/tags?id=:id" },
-    { "source": "/api/tokens/:id", "destination": "/api/tokens?id=:id" },
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/:path*",
+      "destination": "/api?__route=:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }

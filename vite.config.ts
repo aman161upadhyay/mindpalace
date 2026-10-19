@@ -13,7 +13,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "https://mindpalace-bice.vercel.app",
+        target: "https://themindpalace.org",
         changeOrigin: true,
         secure: true,
       },

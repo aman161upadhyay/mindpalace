@@ -1,17 +1,47 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { eq } from "drizzle-orm";
-import { db } from "../../src/lib/db";
-import { apiTokens, highlights } from "../../src/schema";
-import { inferTags } from "../../src/lib/keyword-tags";
-import { applyCors } from "../../src/lib/cors";
-import { rateLimit, getClientIp } from "../../src/lib/rate-limit";
+import { and, desc, eq, isNull } from "drizzle-orm";
+import { db } from "../../lib/db";
+import { apiTokens, highlights } from "../../schema";
+import { inferTags } from "../../lib/keyword-tags";
+import { applyCors } from "../../lib/cors";
+import { rateLimit, getClientIp } from "../../lib/rate-limit";
 
+// Single function for the extension: GET = recent highlights, POST = save.
+// /api/extension/recent and /api/extension/save are rewritten here (see vercel.json).
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (applyCors(req, res)) return;
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method === "GET") return handleRecent(req, res);
+  if (req.method === "POST") return handleSave(req, res);
+  return res.status(405).json({ error: "Method not allowed" });
+}
 
+async function handleRecent(req: VercelRequest, res: VercelResponse) {
+  try {
+    const authHeader = req.headers.authorization || "";
+    const apiToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!apiToken) return res.status(401).json({ error: "API token is required" });
+
+    const tokenRows = await db.select().from(apiTokens).where(eq(apiTokens.token, apiToken)).limit(1);
+    if (tokenRows.length === 0) return res.status(401).json({ error: "Invalid API token" });
+
+    const userId = tokenRows[0].userId;
+    const recent = await db
+      .select()
+      .from(highlights)
+      .where(and(eq(highlights.userId, userId), isNull(highlights.deletedAt)))
+      .orderBy(desc(highlights.createdAt))
+      .limit(5);
+
+    return res.status(200).json(recent);
+  } catch (err: unknown) {
+    console.error("[extension/recent] Error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function handleSave(req: VercelRequest, res: VercelResponse) {
   const ip = getClientIp(req.headers);
-  const { allowed } = rateLimit(ip, { windowMs: 60_000, max: 30 });
+  const { allowed } = rateLimit(`ext-save:${ip}`, { windowMs: 60_000, max: 30 });
   if (!allowed) return res.status(429).json({ error: "Too many requests, please try again later" });
 
   try {

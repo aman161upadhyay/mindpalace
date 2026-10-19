@@ -2,18 +2,18 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import { eq } from "drizzle-orm";
-import { db } from "../../src/lib/db";
-import { users, apiTokens } from "../../src/schema";
-import { signJwt, setSessionCookie } from "../../src/lib/auth";
-import { applyCors } from "../../src/lib/cors";
-import { rateLimit, getClientIp } from "../../src/lib/rate-limit";
+import { db } from "../../lib/db";
+import { users, apiTokens } from "../../schema";
+import { signJwt, setSessionCookie } from "../../lib/auth";
+import { applyCors } from "../../lib/cors";
+import { rateLimit, getClientIp } from "../../lib/rate-limit";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (applyCors(req, res)) return;
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const ip = getClientIp(req.headers);
-  const { allowed } = rateLimit(ip, { windowMs: 60_000, max: 5 });
+  const { allowed } = rateLimit(`register:${ip}`, { windowMs: 60_000, max: 5 });
   if (!allowed) return res.status(429).json({ error: "Too many requests, please try again later" });
 
   try {

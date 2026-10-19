@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Resend } from "resend";
-import { eq, sql } from "drizzle-orm";
-import { db } from "../../src/lib/db";
-import { users, highlights } from "../../src/schema";
+import { and, eq, isNull, sql } from "drizzle-orm";
+import { db } from "../../lib/db";
+import { users, highlights } from "../../schema";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -13,19 +13,28 @@ function verifyCronSecret(req: VercelRequest): boolean {
   return req.headers["authorization"] === `Bearer ${secret}`;
 }
 
+function esc(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function buildEmailHtml(username: string, items: any[]): string {
   const highlightCards = items
     .map(
       (h) => `
     <div style="margin-bottom:20px;padding:16px 20px;background:#f8f7f4;border-left:3px solid #6366f1;border-radius:6px;">
       <p style="margin:0 0 8px;font-style:italic;color:#1a1a2e;line-height:1.6;font-size:15px;">
-        "${h.text}"
+        "${esc(h.text)}"
       </p>
       <p style="margin:0;font-size:12px;color:#666;">
-        ${h.pageTitle ? `<span>${h.pageTitle}</span>` : ""}
-        ${h.domain ? `<span style="color:#999;"> · ${h.domain}</span>` : ""}
+        ${h.pageTitle ? `<span>${esc(h.pageTitle)}</span>` : ""}
+        ${h.domain ? `<span style="color:#999;"> · ${esc(h.domain)}</span>` : ""}
       </p>
-      ${h.notes ? `<p style="margin:8px 0 0;font-size:13px;color:#555;background:#fff;padding:8px 12px;border-radius:4px;">📝 ${h.notes}</p>` : ""}
+      ${h.notes ? `<p style="margin:8px 0 0;font-size:13px;color:#555;background:#fff;padding:8px 12px;border-radius:4px;">📝 ${esc(h.notes)}</p>` : ""}
     </div>
   `
     )
@@ -46,15 +55,15 @@ function buildEmailHtml(username: string, items: any[]): string {
     </div>
 
     <p style="font-size:14px;color:#444;margin:0 0 20px;">
-      Good morning, <strong>${username}</strong>. Here are 5 highlights from your collection to revisit today:
+      Good morning, <strong>${esc(username)}</strong>. Here are 5 highlights from your collection to revisit today:
     </p>
 
     ${highlightCards}
 
     <div style="text-align:center;margin-top:28px;padding-top:20px;border-top:1px solid #ddd;">
       <p style="font-size:12px;color:#999;margin:0;">
-        Sent from <a href="${process.env.DASHBOARD_URL || 'https://mindpalace-bice.vercel.app'}" style="color:#6366f1;text-decoration:none;">Mind Palace</a>.
-        You can disable daily emails in your <a href="${process.env.DASHBOARD_URL || 'https://mindpalace-bice.vercel.app'}/settings" style="color:#6366f1;text-decoration:none;">Settings</a>.
+        Sent from <a href="${process.env.DASHBOARD_URL || 'https://themindpalace.org'}" style="color:#6366f1;text-decoration:none;">Mind Palace</a>.
+        You can disable daily emails in your <a href="${process.env.DASHBOARD_URL || 'https://themindpalace.org'}/settings" style="color:#6366f1;text-decoration:none;">Settings</a>.
       </p>
     </div>
   </div>
@@ -98,7 +107,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const randomHighlights = await db
         .select()
         .from(highlights)
-        .where(eq(highlights.userId, user.id))
+        .where(and(eq(highlights.userId, user.id), isNull(highlights.deletedAt)))
         .orderBy(sql`RANDOM()`)
         .limit(5);
 

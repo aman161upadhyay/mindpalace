@@ -115,7 +115,9 @@ export default function Privacy() {
               Who can see your data
             </h2>
             <p>
-              Only you. We do not sell, share, or monetise your highlights or personal information. The only exception would be if required by law, in which case we would notify you if legally permitted to do so.
+              Only you. We do not sell or monetise your highlights or personal information, and we do not read them. The only exceptions are the following. If you use the optional{" "}
+              <span className="text-foreground font-medium">Ask AI</span> feature, the highlights you have saved (text, source, tags and notes) are sent to Google's Vertex AI service for the sole purpose of answering your question; nothing is sent unless you submit a question. If you turn on the daily email, highlights are emailed to you through{" "}
+              <span className="text-foreground font-medium">Resend</span>. And we may disclose data if required by law, in which case we would notify you if legally permitted to do so.
             </p>
           </section>
 
