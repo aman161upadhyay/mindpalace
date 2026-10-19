@@ -53,8 +53,8 @@ function buildEmailHtml(username: string, items: any[]): string {
 
     <div style="text-align:center;margin-top:28px;padding-top:20px;border-top:1px solid #ddd;">
       <p style="font-size:12px;color:#999;margin:0;">
-        Sent from <a href="${process.env.DASHBOARD_URL || 'https://mindpalace-bice.vercel.app'}" style="color:#6366f1;text-decoration:none;">Mind Palace</a>.
-        You can disable daily emails in your <a href="${process.env.DASHBOARD_URL || 'https://mindpalace-bice.vercel.app'}/settings" style="color:#6366f1;text-decoration:none;">Settings</a>.
+        Sent from <a href="${process.env.DASHBOARD_URL || 'https://themindpalace.org'}" style="color:#6366f1;text-decoration:none;">Mind Palace</a>.
+        You can disable daily emails in your <a href="${process.env.DASHBOARD_URL || 'https://themindpalace.org'}/settings" style="color:#6366f1;text-decoration:none;">Settings</a>.
       </p>
     </div>
   </div>

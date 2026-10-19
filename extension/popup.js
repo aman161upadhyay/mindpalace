@@ -1,7 +1,7 @@
 // Popup Script — Mind Palace
 // Settings are loaded from chrome.storage.sync — no hardcoded credentials.
 
-const DEFAULT_DASHBOARD_URL = "https://mindpalace-bice.vercel.app";
+const DEFAULT_DASHBOARD_URL = "https://themindpalace.org";
 
 document.addEventListener("DOMContentLoaded", () => {
   const viewMain      = document.getElementById("view-main");

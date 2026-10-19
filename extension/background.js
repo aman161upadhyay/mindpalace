@@ -1,6 +1,6 @@
 // Background Service Worker — Mind Palace (MV3)
 
-const DEFAULT_DASHBOARD_URL = "https://mindpalace-bice.vercel.app";
+const DEFAULT_DASHBOARD_URL = "https://themindpalace.org";
 
 // Helper to get dynamic settings from storage
 function getSettings() {
