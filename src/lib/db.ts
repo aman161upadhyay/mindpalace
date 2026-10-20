@@ -9,9 +9,15 @@ let instance: Db | null = null;
 // request that needs the database with a clear error instead of crashing the whole function.
 function getDb(): Db {
   if (instance) return instance;
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL environment variable is not set");
-  if (!/^postgres(ql)?:\/\//.test(url)) throw new Error("DATABASE_URL must be a full postgresql:// connection string");
+  const raw = process.env.DATABASE_URL;
+  if (!raw) throw new Error("DATABASE_URL environment variable is not set");
+  // Accept the string even if it was pasted with quotes or as Neon's `psql '...'` command.
+  const url = raw.match(/postgres(?:ql)?:\/\/[^\s'"]+/)?.[0];
+  if (!url) {
+    // Describe the value's shape without revealing it, so a bad paste is easy to diagnose.
+    const shape = `length ${raw.length}, starts with "${raw.slice(0, 4).replace(/[A-Za-z0-9]/g, "x")}", contains "://": ${raw.includes("://")}, contains "@": ${raw.includes("@")}`;
+    throw new Error(`DATABASE_URL must be a full postgresql:// connection string (got ${shape})`);
+  }
   instance = drizzle(neon(url), { schema });
   return instance;
 }
