@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Highlighter, Loader2 } from "lucide-react";
+import { PasswordInput } from "@/components/ui/password-input";
 
 export default function Register() {
   const [, navigate] = useLocation();
@@ -112,8 +113,7 @@ export default function Register() {
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Password</label>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-3 py-2.5 rounded-lg bg-secondary border border-border text-foreground text-sm outline-none focus:border-primary transition-colors"
@@ -126,8 +126,7 @@ export default function Register() {
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Confirm password</label>
-            <input
-              type="password"
+            <PasswordInput
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-3 py-2.5 rounded-lg bg-secondary border border-border text-foreground text-sm outline-none focus:border-primary transition-colors"

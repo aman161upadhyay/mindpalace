@@ -74,7 +74,7 @@ const FAQS: { q: string; a: string | ReactNode }[] = [
   },
   {
     q: "How do I delete a highlight?",
-    a: "Click the trash icon on a highlight card (or open the highlight and click Delete). It moves to Trash, in the sidebar, where you can restore it or delete it forever.",
+    a: "Click the trash icon on a highlight card (or open the highlight and click Delete). It moves to Trash, in the sidebar, where you can restore it, delete it forever, or empty the whole Trash at once.",
   },
   {
     q: "How do I download my highlights to use with AI tools?",
@@ -82,7 +82,7 @@ const FAQS: { q: string; a: string | ReactNode }[] = [
   },
   {
     q: "How do I reset my password?",
-    a: "Email aupadhyay@mba2027.hbs.edu from the address you signed up with and include your username. We'll verify it's you and send a temporary password. (Self-service reset is switched off for security until reset codes can be emailed.)",
+    a: "On the Sign in page click Forgot password, enter your username and the email you signed up with, then choose a new password (at least 8 characters). If you don't remember your email, write to aupadhyay@mba2027.hbs.edu with your username.",
   },
   {
     q: "Is my data private?",

@@ -26,6 +26,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { PasswordInput } from "@/components/ui/password-input";
 
 // ─── Extension ID Detection ──────────────────────────────────────────────────
 
@@ -367,12 +368,11 @@ function NotionSettings() {
                 <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
                   Notion Integration Token
                 </label>
-                <Input
+                <PasswordInput
                   value={notionToken}
                   onChange={(e) => setNotionToken(e.target.value)}
                   placeholder="ntn_..."
-                  className="font-mono text-xs"
-                  type="password"
+                  className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-mono text-xs"
                 />
               </div>
               <div>

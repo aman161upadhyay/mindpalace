@@ -14,6 +14,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const inputUrl      = document.getElementById("input-dashboard-url");
   const inputToken    = document.getElementById("input-api-token");
   const statusEl      = document.getElementById("settings-status");
+  const btnToggle     = document.getElementById("btn-toggle-token");
+
+  btnToggle.addEventListener("click", () => {
+    const show = inputToken.type === "password";
+    inputToken.type = show ? "text" : "password";
+    btnToggle.textContent = show ? "Hide" : "Show";
+    btnToggle.setAttribute("aria-label", show ? "Hide token" : "Show token");
+    btnToggle.setAttribute("aria-pressed", String(show));
+  });
 
   // ─── View Switching ──────────────────────────────────────────────────────────
 

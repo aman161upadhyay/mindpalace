@@ -155,6 +155,10 @@
     .settings-desc { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
 
     .field { display: flex; flex-direction: column; gap: 4px; }
+    .field .with-toggle { position: relative; display: flex; }
+    .field .with-toggle input { flex: 1; padding-right: 54px; }
+    .field .toggle-visibility { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); font: inherit; font-size: 11px; cursor: pointer; padding: 2px 4px; }
+    .field .toggle-visibility:hover { color: inherit; }
     .field label { font-size: 11px; font-weight: 500; color: var(--text-muted); }
     .field input {
       padding: 7px 10px; border-radius: var(--radius);
@@ -247,7 +251,10 @@
 
     <div class="field">
       <label>API Token</label>
-      <input type="password" id="input-api-token" placeholder="hc_••••••••••••••••••••" />
+      <div class="with-toggle">
+        <input type="password" id="input-api-token" placeholder="hc_••••••••••••••••••••" />
+        <button type="button" class="toggle-visibility" id="btn-toggle-token" aria-label="Show token" aria-pressed="false">Show</button>
+      </div>
     </div>
 
     <div id="settings-status" class="status-msg"></div>

@@ -4,7 +4,10 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "../../lib/db";
 import { users, highlights } from "../../schema";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Created on first use: the Resend constructor throws when the key is missing, and this module is
+// loaded by the single API function, so a module-level client would take every route down with it.
+let resendClient: Resend | null = null;
+const getResend = () => (resendClient ??= new Resend(process.env.RESEND_API_KEY));
 
 // Vercel Cron security: only allow requests from Vercel's scheduler
 function verifyCronSecret(req: VercelRequest): boolean {
@@ -117,7 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const emailHtml = buildEmailHtml(user.username, randomHighlights);
 
       try {
-        await resend.emails.send({
+        await getResend().emails.send({
           from: "Mind Palace <onboarding@resend.dev>",
           to: user.email,
           subject: `✦ Your Daily Highlights — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,

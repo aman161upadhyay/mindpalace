@@ -109,7 +109,7 @@ try {
   const tagRes = await pageApi(page, "/api/tags", { method: "POST", body: JSON.stringify({ name: "exam-prep", color: "#ff0000" }) });
   const list = await pageApi(page, "/api/highlights?limit=100");
   await pageApi(page, `/api/highlights?id=${list.data.items[0].id}`, { method: "PATCH", body: JSON.stringify({ tagIds: [tagRes.data.id], notes: "Important for the final" }) });
-  const countA = list.data.total;
+  let countA = list.data.total;
 
   // Escape closes the detail modal
   await page.reload({ waitUntil: "networkidle0" }); await sleep(800);
@@ -120,24 +120,36 @@ try {
   const openAfter = await page.evaluate(() => !!document.querySelector('[role="dialog"]'));
   ok("Escape closes the highlight detail window", openBefore && !openAfter, JSON.stringify({ openBefore, openAfter }));
 
-  // Delete forever asks for confirmation
-  await page.evaluate(() => document.querySelector('button[aria-label="Move highlight to Trash"]').click());
-  await sleep(900);
+  // Trash: single "Delete forever" is instant; "Empty Trash" asks once
+  for (let k = 0; k < 2; k++) {
+    await page.evaluate(() => { const bs = document.querySelectorAll('button[aria-label="Move highlight to Trash"]'); bs[bs.length - 1].click(); });
+    await sleep(900);
+  }
   await page.evaluate(() => { const b = Array.from(document.querySelectorAll("button, div")).find((e) => /^\s*Trash/i.test(e.innerText || "") && e.innerText.length < 30); b && b.click(); });
   await sleep(900);
-  await page.evaluate(() => { const b = Array.from(document.querySelectorAll("button")).find((e) => /Delete forever/i.test(e.innerText)); b && b.click(); });
+  await page.evaluate(() => { const b = Array.from(document.querySelectorAll("button")).find((e) => /^\s*Delete forever\s*$/i.test(e.innerText)); b && b.click(); });
+  await sleep(900);
+  const afterSingle = (await pageApi(page, "/api/highlights?action=trash")).data.length;
+  const noConfirm = await page.evaluate(() => !/Delete forever\?|Empty Trash\?/.test(document.body.innerText));
+  ok("single 'Delete forever' deletes immediately (no confirmation)", afterSingle === 1 && noConfirm, JSON.stringify({ afterSingle, noConfirm }));
+  await page.evaluate(() => { const b = Array.from(document.querySelectorAll("button")).find((e) => /^\s*Empty Trash\s*$/i.test(e.innerText)); b && b.click(); });
   await sleep(500);
-  const confirmShown = await page.evaluate(() => /Delete forever\?/.test(document.body.innerText));
+  const emptyConfirm = await page.evaluate(() => /Empty Trash\?/.test(document.body.innerText));
   await page.keyboard.press("Escape"); await sleep(400);
-  const trashStillOpen = await page.evaluate(() => /Restore/.test(document.body.innerText));
-  const trashCount = (await pageApi(page, "/api/highlights?action=trash")).data.length;
-  ok("'Delete forever' asks for confirmation; Escape cancels only the confirmation", confirmShown && trashStillOpen && trashCount === 1, JSON.stringify({ confirmShown, trashStillOpen, trashCount }));
-  await page.evaluate(() => { const b = Array.from(document.querySelectorAll("button")).find((e) => /Restore/i.test(e.innerText)); b && b.click(); });
-  await sleep(800);
+  const stillOne = (await pageApi(page, "/api/highlights?action=trash")).data.length;
+  ok("'Empty Trash' asks for one confirmation; Escape cancels it", emptyConfirm && stillOne === 1, JSON.stringify({ emptyConfirm, stillOne }));
+  await page.evaluate(() => { const b = Array.from(document.querySelectorAll("button")).find((e) => /^\s*Empty Trash\s*$/i.test(e.innerText)); b && b.click(); });
+  await sleep(500);
+  await page.evaluate(() => { const bs = Array.from(document.querySelectorAll("button")).filter((e) => /^\s*Empty Trash\s*$/i.test(e.innerText)); bs[bs.length - 1].click(); });
+  await sleep(1200);
+  const afterEmpty = (await pageApi(page, "/api/highlights?action=trash")).data.length;
+  countA = (await pageApi(page, "/api/highlights?limit=100")).data.total;
+  ok("confirming 'Empty Trash' erases everything in Trash and nothing else", afterEmpty === 0 && countA === list.data.total - 2, JSON.stringify({ afterEmpty, countA }));
   await page.keyboard.press("Escape"); await sleep(300);
 
   // AI Brain Pack download through the real Export window
   await page.reload({ waitUntil: "networkidle0" }); await sleep(800);
+  const expectedSources = new Set((await pageApi(page, "/api/highlights?limit=100")).data.items.map((h) => h.sourceUrl)).size;
   await page.evaluate(() => { const b = Array.from(document.querySelectorAll("button")).find((e) => /^\s*Export\s*$/i.test(e.innerText)); b && b.click(); });
   await sleep(700);
   await page.screenshot({ path: path.join(SHOTS, "export-modal.png") });
@@ -153,7 +165,7 @@ src = [n for n in names if n.startswith("sources/") and not n.endswith("/")]
 print(json.dumps({"names": len(names), "readme": "README.md" in names, "index": "sources.md" in names, "jsonl": len(lines), "sources": len(src), "tagged": sum(1 for l in lines if l["tags"]), "notes": sum(1 for l in lines if l["notes"])}))
 `, zipPath]).toString();
     const z = JSON.parse(out);
-    ok("pack contains README, index, JSONL with every highlight, one note per source page", z.readme && z.index && z.jsonl === countA && z.sources === 3 && z.tagged === 1 && z.notes === 1, out.trim());
+    ok("pack contains README, index, JSONL with every highlight, one note per source page", z.readme && z.index && z.jsonl === countA && z.sources === expectedSources && z.tagged === 1 && z.notes === 1, out.trim());
   }
 
   // Round trip: export JSON from A, import into a brand-new student B through the Import window
@@ -201,14 +213,32 @@ print(json.dumps({"names": len(names), "readme": "README.md" in names, "index": 
   st = await worker.evaluate(() => chrome.storage.sync.get(null));
   ok("signing out of the dashboard disconnects the extension (token cleared)", !st.apiToken, JSON.stringify({ tok: st.apiToken ? "present" : "empty" }));
 
-  // Forgot password page + endpoint
+  // Forgot password: username + email reset form, show/hide on password fields
   await page.goto(BASE + "/forgot-password", { waitUntil: "networkidle0" }); await sleep(400);
-  const fp = await page.evaluate(() => document.body.innerText);
-  ok("Forgot-password page explains how to get help (email link, no reset form)", /aupadhyay@mba2027\.hbs\.edu/.test(fp) && !(document => false)(), fp.slice(0, 160));
-  const rp = await pageApi(page, "/api/auth/reset-password", { method: "POST", body: JSON.stringify({ username: A.username, email: A.username + "@example.com", newPassword: "hijacked-pass-123" }) });
-  ok("old reset endpoint can no longer change passwords (410)", rp.status === 410, JSON.stringify(rp));
+  const fpInputs = await page.evaluate(() => ({ pw: document.querySelectorAll('input[type="password"]').length, eyes: document.querySelectorAll('button[aria-label="Show password"]').length }));
+  ok("Forgot-password page has the reset form with show/hide on both password fields", fpInputs.pw === 2 && fpInputs.eyes === 2, JSON.stringify(fpInputs));
+  const wrong = await pageApi(page, "/api/auth/reset-password", { method: "POST", body: JSON.stringify({ username: A.username, email: "someone-else@example.com", newPassword: "whatever-123" }) });
+  ok("reset with a username/email that don't match is refused", wrong.status === 400, JSON.stringify(wrong));
+  const newPw = "Reset-" + rnd() + rnd();
+  await page.type('input[autocomplete="username"]', A.username);
+  await page.type('input[type="email"]', A.username + "@example.com");
+  const resetPw = await page.$$('input[autocomplete="new-password"]');
+  await resetPw[0].type(newPw); await resetPw[1].type(newPw);
+  await page.click('button[type="submit"]');
+  await sleep(1500);
+  const resetDone = await page.evaluate(() => /Password Reset/.test(document.body.innerText));
+  const relogin = await pageApi(page, "/api/auth/login", { method: "POST", body: JSON.stringify({ username: A.username, password: newPw }) });
+  ok("reset with matching username + email works, and the new password signs in", resetDone && relogin.status === 200, JSON.stringify({ resetDone, login: relogin.status }));
+  A.password = newPw;
+  await page.evaluate(async () => { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); });
 
-  console.log("STEP phone", new Date().toISOString().slice(11,19));
+  // Show/hide password on the sign-in page
+  await page.goto(BASE + "/login", { waitUntil: "networkidle0" }); await sleep(300);
+  await page.type('input[type="password"]', "peekaboo");
+  await page.click('button[aria-label="Show password"]');
+  const shown = await page.evaluate(() => { const i = document.querySelector('input[autocomplete="current-password"], input[value="peekaboo"]') || Array.from(document.querySelectorAll("input")).find((x) => x.value === "peekaboo"); return i ? i.type : null; });
+  ok("sign-in page: the eye button reveals the typed password", shown === "text", String(shown));
+
   // Phone layout (375 px)
   const phone = await browser.newPage();
   await phone.setViewport({ width: 375, height: 812, isMobile: true, hasTouch: true });

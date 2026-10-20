@@ -106,6 +106,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // ── GET ?action=trash ─────────────────────────────────────────────────
+    if (req.method === "DELETE" && action === "empty-trash") {
+      const removed = await db
+        .delete(highlights)
+        .where(and(eq(highlights.userId, userId), isNotNull(highlights.deletedAt)))
+        .returning({ id: highlights.id });
+      return res.status(200).json({ success: true, deleted: removed.length });
+    }
+
     if (req.method === "GET" && action === "trash") {
       const items = await db
         .select()

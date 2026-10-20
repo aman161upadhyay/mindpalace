@@ -961,7 +961,7 @@ export default function MindPalace() {
   const [, navigate] = useLocation();
 
   const [sidebarOpen, setSidebarOpen] = useState(() => typeof window === "undefined" || window.innerWidth >= 768);
-  const [confirmPurgeId, setConfirmPurgeId] = useState<number | null>(null);
+  const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
@@ -1096,6 +1096,14 @@ export default function MindPalace() {
     fetchTrash();
     if (res.ok) toast.success("Deleted forever");
     else toast.error("Could not delete it. Please try again.");
+  };
+
+  const handleEmptyTrash = async () => {
+    const res = await fetch("/api/highlights?action=empty-trash", { method: "DELETE", credentials: "include" });
+    const data = await res.json().catch(() => ({}));
+    fetchTrash();
+    if (res.ok) toast.success(`Trash emptied (${data.deleted ?? 0} deleted forever)`);
+    else toast.error("Could not empty Trash. Please try again.");
   };
 
   const highlights = highlightsData?.items ?? [];
@@ -1491,6 +1499,16 @@ export default function MindPalace() {
                 <span className="text-sm font-normal text-muted-foreground ml-1">
                   ({trashItems.length} {trashItems.length === 1 ? "highlight" : "highlights"})
                 </span>
+                {trashItems.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="ml-auto h-8 px-3 text-xs rounded-full text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => setConfirmEmptyTrash(true)}
+                  >
+                    Empty Trash
+                  </Button>
+                )}
               </DialogTitle>
             </DialogHeader>
             <div className="flex-1 overflow-y-auto px-8 py-6 space-y-3">
@@ -1523,7 +1541,7 @@ export default function MindPalace() {
                         size="sm"
                         variant="ghost"
                         className="h-8 px-3 text-xs rounded-full text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => setConfirmPurgeId(h.id)}
+                        onClick={() => handlePurgeHighlight(h.id)}
                       >
                         Delete forever
                       </Button>
@@ -1536,12 +1554,12 @@ export default function MindPalace() {
         </Dialog>
       )}
       <ConfirmDialog
-        open={confirmPurgeId !== null}
-        title="Delete forever?"
-        description="This highlight will be permanently erased. This cannot be undone."
-        confirmLabel="Delete forever"
-        onConfirm={() => { const id = confirmPurgeId; setConfirmPurgeId(null); if (id !== null) handlePurgeHighlight(id); }}
-        onCancel={() => setConfirmPurgeId(null)}
+        open={confirmEmptyTrash}
+        title="Empty Trash?"
+        description={`All ${trashItems.length} ${trashItems.length === 1 ? "highlight" : "highlights"} in Trash will be permanently erased. This cannot be undone.`}
+        confirmLabel="Empty Trash"
+        onConfirm={() => { setConfirmEmptyTrash(false); handleEmptyTrash(); }}
+        onCancel={() => setConfirmEmptyTrash(false)}
       />
       <ConfirmDialog
         open={confirmDeleteTag !== null}
