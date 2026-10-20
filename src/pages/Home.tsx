@@ -89,7 +89,7 @@ const PARCHMENT_SHADOW =
   "inset 0 0 70px rgba(110,70,20,0.13), 0 6px 24px rgba(0,0,0,0.28), 0 1px 4px rgba(0,0,0,0.12)";
 
 // ── Card components ───────────────────────────────────────────────────────────
-function BookCard({ spark, rotation, offset }: { spark: BookSpark; rotation: number; offset: string }) {
+function BookCard({ spark, rotation }: { spark: BookSpark; rotation: number }) {
   return (
     <div
       className="w-full rounded-sm p-7"
@@ -167,7 +167,7 @@ function BookCard({ spark, rotation, offset }: { spark: BookSpark; rotation: num
   );
 }
 
-function AiCard({ spark, rotation, offset }: { spark: AiSpark; rotation: number; offset: string }) {
+function AiCard({ spark, rotation }: { spark: AiSpark; rotation: number }) {
   return (
     <div
       className="w-full rounded-sm p-7"
@@ -248,7 +248,7 @@ function AiCard({ spark, rotation, offset }: { spark: AiSpark; rotation: number;
   );
 }
 
-function TweetCard({ spark, rotation, offset }: { spark: TweetSpark; rotation: number; offset: string }) {
+function TweetCard({ spark, rotation }: { spark: TweetSpark; rotation: number }) {
   return (
     <div
       className="w-full rounded-sm p-7"
@@ -367,10 +367,10 @@ function TweetCard({ spark, rotation, offset }: { spark: TweetSpark; rotation: n
   );
 }
 
-function SparkCard({ spark, rotation, offset }: { spark: Spark; rotation: number; offset: string }) {
-  if (spark.type === "book") return <BookCard spark={spark} rotation={rotation} offset={offset} />;
-  if (spark.type === "ai") return <AiCard spark={spark} rotation={rotation} offset={offset} />;
-  return <TweetCard spark={spark} rotation={rotation} offset={offset} />;
+function SparkCard({ spark, rotation }: { spark: Spark; rotation: number }) {
+  if (spark.type === "book") return <BookCard spark={spark} rotation={rotation} />;
+  if (spark.type === "ai") return <AiCard spark={spark} rotation={rotation} />;
+  return <TweetCard spark={spark} rotation={rotation} />;
 }
 
 // ── Botanical side decoration SVGs ────────────────────────────────────────────
@@ -1005,7 +1005,6 @@ export default function Home() {
   const [, navigate] = useLocation();
   const { text1, text2, done } = useTypingAnimation(1400);
   const rotations = [-2, 1.5, -1];
-  const offsets = ["self-start", "self-center", "self-end"];
 
   return (
     <div className="min-h-screen text-foreground overflow-x-hidden">
@@ -1138,7 +1137,6 @@ export default function Home() {
                 key={i}
                 spark={spark}
                 rotation={rotations[i]}
-                offset={offsets[i]}
               />
             ))}
           </div>

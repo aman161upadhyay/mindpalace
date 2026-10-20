@@ -22,6 +22,7 @@ const RESERVED_WINDOWS_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 /** A filename that is valid on Windows, macOS and Linux and unique (case-insensitively) within `used`. */
 export function safeFilename(name: string, used: Set<string>, ext = ".md", maxLength = 80): string {
   let base = String(name ?? "")
+    // eslint-disable-next-line no-control-regex -- control characters are exactly what must be removed
     .replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, "-")
     .replace(/\s+/g, " ")
     .trim()
@@ -49,7 +50,7 @@ export const mdPlain = (text: string) =>
     .map((line) => (/^\s*(#|>|[-*_]{3,}\s*$|[-*+]\s|\d+\.\s|=+\s*$)/.test(line) ? `\\${line.trimStart()}` : line))
     .join("  \n");
 
-export const mdLinkText = (s: string) => String(s ?? "").replace(/([\[\]\\])/g, "\\$1").replace(/\s+/g, " ").trim();
+export const mdLinkText = (s: string) => String(s ?? "").replace(/([[\]\\])/g, "\\$1").replace(/\s+/g, " ").trim();
 
 export const mdUrl = (u: string) => `<${String(u ?? "").replace(/[<>\s]/g, (c) => encodeURIComponent(c))}>`;
 

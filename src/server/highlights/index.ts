@@ -134,7 +134,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         try {
           const parsed = JSON.parse(row.metadataTags || "[]");
           if (Array.isArray(parsed)) parsed.forEach((t: string) => tagSet.add(t));
-        } catch {}
+        } catch {
+          // skip rows whose stored topics are not valid JSON
+        }
       }
       return res.status(200).json([...tagSet].sort());
     }
@@ -293,7 +295,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         try {
           const tagNames = (JSON.parse(h.tagIds || "[]") as number[]).map((id) => tagMap[id]?.name).filter(Boolean);
           let metaTags: string[] = [];
-          try { metaTags = JSON.parse(h.metadataTags || "[]"); } catch {}
+          try { metaTags = JSON.parse(h.metadataTags || "[]"); } catch { /* keep an empty list */ }
 
           await notion.pages.create({
             parent: { database_id: dbId },

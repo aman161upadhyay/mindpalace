@@ -21,7 +21,7 @@ export interface ParseResult {
 
 /** RFC 4180 CSV: quoted fields, doubled quotes, line breaks inside quotes; delimiter auto-detected. */
 export function parseCsv(input: string): string[][] {
-  const text = input.replace(/^﻿/, "");
+  const text = input.replace(/^\uFEFF/, "");
   const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
   const counts = { ",": 0, ";": 0, "\t": 0 } as Record<string, number>;
   let quoted = false;
@@ -77,7 +77,7 @@ const splitList = (s: string) => s.split(/[,;]/).map((t) => t.trim()).filter(Boo
 
 /** X/Twitter `window.YTD.like.part0 = [...]` files and plain JSON arrays. */
 function parseJsonLoose(text: string): unknown {
-  const cleaned = text.replace(/^﻿/, "").replace(/^\s*window\.YTD\.[\w.]+\s*=\s*/, "");
+  const cleaned = text.replace(/^\uFEFF/, "").replace(/^\s*window\.YTD\.[\w.]+\s*=\s*/, "");
   return JSON.parse(cleaned);
 }
 
@@ -158,7 +158,7 @@ export function parseReddit(text: string): ParseResult {
 
 /** Mind Palace JSON / JSONL exports and generic arrays of {text, url, ...}. */
 export function parseJsonItems(text: string): ParseResult {
-  const trimmed = text.replace(/^﻿/, "").trim();
+  const trimmed = text.replace(/^\uFEFF/, "").trim();
   let records: any[] = [];
   try {
     const data = JSON.parse(trimmed);

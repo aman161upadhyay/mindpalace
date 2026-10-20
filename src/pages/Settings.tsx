@@ -97,12 +97,12 @@ function useExtensionBridge() {
       clearTimeout(t);
       document.removeEventListener("HC_SETTINGS_RESPONSE", handler);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const pushSettings = (apiToken: string, dashboardUrl: string) => {
     return new Promise<boolean>((resolve) => {
       const timeout = setTimeout(() => resolve(false), 1200);
-      const handler = (e: Event) => {
+      const handler = () => {
         clearTimeout(timeout);
         setExtSettings({ apiToken, dashboardUrl });
         document.removeEventListener("HC_SETTINGS_SAVED", handler);
@@ -197,7 +197,9 @@ function NotionSettings() {
           setNotionDbId(data.notionDatabaseId || "");
           setLastSync(data.notionLastSync || null);
         }
-      } catch {}
+      } catch {
+        // leave the Notion status as it is if the profile request fails
+      }
     })();
   }, []);
 

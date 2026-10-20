@@ -8,7 +8,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const route = resolveRoute(fromRewrite ?? req.url ?? "");
   if (!route) return res.status(404).json({ error: "Not found" });
 
-  const { __route: _ignored, ...rest } = req.query;
+  const rest = { ...req.query };
+  delete rest.__route;
   const query: Record<string, string | string[] | undefined> = route.id ? { ...rest, id: route.id } : rest;
   Object.defineProperty(req, "query", { value: query, configurable: true, writable: true, enumerable: true });
 

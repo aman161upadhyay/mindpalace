@@ -1,5 +1,4 @@
 import { useAuth } from "@/contexts/AuthContext";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -254,7 +253,7 @@ function HighlightDetailModal({
       setIsEditingText(false);
       onUpdated();
       toast.success("Highlight updated");
-    } catch (err) {
+    } catch {
       toast.error("Failed to update highlight");
     } finally {
       setSaving(false);
@@ -594,7 +593,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
         URL.revokeObjectURL(url);
         toast.success(`Exported as ${data.filename}`);
       }
-    } catch (err) {
+    } catch {
       toast.error("Export failed");
     } finally {
       setIsLoading(false);
@@ -975,7 +974,7 @@ function NewTagModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
 // ─── Main Mind Palace Page ─────────────────────────────────────────────────────
 
 export default function MindPalace() {
-  const { user, isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
 
   const [sidebarOpen, setSidebarOpen] = useState(() => typeof window === "undefined" || window.innerWidth >= 768);

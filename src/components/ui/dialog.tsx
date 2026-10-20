@@ -25,6 +25,8 @@ export const Dialog = ({ open, onOpenChange, children }: any) => {
       openStack.splice(openStack.indexOf(id), 1);
       previouslyFocused?.focus?.();
     };
+  // onOpenChange changes identity on every render; the effect must only run when `open` toggles.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   if (!open) return null;

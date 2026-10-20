@@ -19,9 +19,8 @@ export const Button = React.forwardRef<
   React.ButtonHTMLAttributes<HTMLButtonElement> & {
     variant?: string;
     size?: string;
-    asChild?: boolean;
   }
->(({ className = "", variant = "default", size = "default", asChild = false, children, ...props }, ref) => {
+>(({ className = "", variant = "default", size = "default", children, ...props }, ref) => {
   return (
     <button
       className={`inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none ring-offset-background cursor-pointer ${variantStyles[variant] || variantStyles.default} ${sizeStyles[size] || sizeStyles.default} ${className}`}
