@@ -41,7 +41,7 @@ async function handleRecent(req: VercelRequest, res: VercelResponse) {
 
 async function handleSave(req: VercelRequest, res: VercelResponse) {
   const ip = getClientIp(req.headers);
-  const { allowed } = rateLimit(`ext-save:${ip}`, { windowMs: 60_000, max: 30 });
+  const { allowed } = rateLimit(`ext-save-ip:${ip}`, { windowMs: 60_000, max: 300 });
   if (!allowed) return res.status(429).json({ error: "Too many requests, please try again later" });
 
   try {
@@ -54,6 +54,8 @@ async function handleSave(req: VercelRequest, res: VercelResponse) {
     if (tokenRows.length === 0) return res.status(401).json({ error: "Invalid API token" });
 
     const userId = tokenRows[0].userId;
+    if (!rateLimit(`ext-save:${apiToken}`, { windowMs: 60_000, max: 30 }).allowed)
+      return res.status(429).json({ error: "Too many saves in a minute, please wait" });
 
     if (!text || typeof text !== "string" || text.length === 0)
       return res.status(400).json({ error: "Text is required" });
@@ -75,7 +77,7 @@ async function handleSave(req: VercelRequest, res: VercelResponse) {
         userId,
         text,
         sourceUrl: rawUrl,
-        pageTitle: (pageTitle as string) || "",
+        pageTitle: typeof pageTitle === "string" ? pageTitle.slice(0, 512) : "",
         domain: rawDomain,
         notes: null,
         tagIds: "[]",

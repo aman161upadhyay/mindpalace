@@ -13,7 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const ip = getClientIp(req.headers);
-  const { allowed } = rateLimit(`register:${ip}`, { windowMs: 60_000, max: 5 });
+  const { allowed } = rateLimit(`register:${ip}`, { windowMs: 60_000, max: 30 });
   if (!allowed) return res.status(429).json({ error: "Too many requests, please try again later" });
 
   try {

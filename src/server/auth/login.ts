@@ -13,7 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const ip = getClientIp(req.headers);
-  const { allowed } = rateLimit(`login:${ip}`, { windowMs: 60_000, max: 10 });
+  const { allowed } = rateLimit(`login-ip:${ip}`, { windowMs: 60_000, max: 100 });
   if (!allowed) return res.status(429).json({ error: "Too many requests, please try again later" });
 
   try {
@@ -25,6 +25,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Password is required" });
 
     const trimmedLogin = username.trim().toLowerCase();
+    if (!rateLimit(`login-user:${trimmedLogin}`, { windowMs: 60_000, max: 10 }).allowed)
+      return res.status(429).json({ error: "Too many attempts for this account. Please wait a minute." });
 
     const found = await db
       .select()

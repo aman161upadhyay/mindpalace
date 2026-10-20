@@ -51,6 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    // Disconnect the extension too, so a shared computer doesn't keep saving to this account.
+    if (document.documentElement.getAttribute("data-hc-extension") === "true") {
+      document.dispatchEvent(new CustomEvent("HC_SAVE_SETTINGS", { detail: { apiToken: "" } }));
+    }
     setUser(null);
   };
 

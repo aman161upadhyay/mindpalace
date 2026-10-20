@@ -11,9 +11,10 @@ const FAQS: { q: string; a: string | ReactNode }[] = [
     q: "How do I save a highlight?",
     a: (
       <>
-        Install the Mind Palace Chrome extension, sign in with your account credentials, then select any text on a webpage and press{" "}
+        Install the Mind Palace Chrome extension and sign in at themindpalace.org once — the extension connects to your account automatically. Then select any text on a webpage and press{" "}
         <span className="font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">Ctrl + Shift + S</span>{" "}
         (or right-click and choose <em>Save to Mind Palace</em>). The highlight is saved instantly — no copying, no pasting.
+        On PDFs opened in Chrome, select the text, right-click and choose <em>Save to Mind Palace</em>.
       </>
     ),
   },
@@ -29,15 +30,15 @@ const FAQS: { q: string; a: string | ReactNode }[] = [
     q: "How do I install the Chrome extension?",
     a: (
       <>
-        Search for <em>Mind Palace</em> in the{" "}
-        <span className="text-foreground font-medium">Chrome Web Store</span> and click{" "}
-        <em>Add to Chrome</em>. Once installed, click the extension icon, enter your API token from the Settings page, and you're ready to start capturing highlights.
+        Open 
+        <a href="https://chromewebstore.google.com/detail/mind-palace/hfjlflceaophbbeadanbpibaaidbjoao" target="_blank" rel="noreferrer" className="text-primary underline">Mind Palace on the Chrome Web Store</a> 
+        and click <em>Add to Chrome</em>. Then sign in at themindpalace.org (or refresh the page if you're already signed in) and the extension connects itself. No copying of tokens needed.
       </>
     ),
   },
   {
     q: "What is an API token and where do I find it?",
-    a: 'An API token is a secret key that links the Chrome extension to your account. Go to Settings → API Tokens to find yours. You can copy it with one click and paste it into the extension setup screen. Never share this token — anyone who has it can save highlights to your account.',
+    a: "An API token is a secret key that links the Chrome extension to your account. The extension receives it automatically when you sign in on themindpalace.org. You can also see it under Settings → API Tokens and paste it into the extension's settings by hand. Never share it — anyone who has it can save highlights to your account. Deleting a token disconnects any extension using it.",
   },
   {
     q: "Can I use Mind Palace without the extension?",
@@ -53,7 +54,7 @@ const FAQS: { q: string; a: string | ReactNode }[] = [
   },
   {
     q: "What are the daily highlights emails?",
-    a: "Mind Palace can send you a daily email with a random selection of your saved highlights — a way to resurface things you've forgotten. You can turn this on any time in Settings → Daily Digest. It is off by default.",
+    a: "Mind Palace can send you a daily email with a random selection of your saved highlights — a way to resurface things you've forgotten. You can turn this on any time in Settings → Daily Highlights Email. It is off by default.",
   },
   {
     q: "Can I export my highlights?",
@@ -73,11 +74,15 @@ const FAQS: { q: string; a: string | ReactNode }[] = [
   },
   {
     q: "How do I delete a highlight?",
-    a: "Open the highlight by clicking its card, then click Delete Highlight at the bottom left. You'll be asked to confirm before anything is removed.",
+    a: "Click the trash icon on a highlight card (or open the highlight and click Delete). It moves to Trash, in the sidebar, where you can restore it or delete it forever.",
+  },
+  {
+    q: "How do I download my highlights to use with AI tools?",
+    a: "Click Export in the sidebar and choose AI Brain Pack. You get a ZIP with one note per page you read, an index, a highlights.jsonl file and a README with step-by-step instructions for NotebookLM, ChatGPT or Claude Projects, Obsidian, and private local AI such as Ollama with AnythingLLM. JSON, Markdown, Obsidian and Notion CSV exports are also available.",
   },
   {
     q: "How do I reset my password?",
-    a: 'Go to the Sign in page and click Forgot password. You\'ll need to provide both your username and the email address registered to your account. Enter a new password (at least 8 characters) and you\'re done — no email link required.',
+    a: "Email aupadhyay@mba2027.hbs.edu from the address you signed up with and include your username. We'll verify it's you and send a temporary password. (Self-service reset is switched off for security until reset codes can be emailed.)",
   },
   {
     q: "Is my data private?",

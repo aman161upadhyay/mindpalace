@@ -1,0 +1,12 @@
+# Never upload local secrets, private notes or large local artefacts with `vercel deploy`.
+.env*
+!.env.local.example
+agentlanggraph-*.json
+*.pem
+DSAIL Exam/
+docs/DOMAIN_MIGRATION_CONTEXT.md
+dist-extension/
+*.zip
+.claude/
+Mind_Palace_Playbook/
+Images/

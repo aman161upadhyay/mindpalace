@@ -119,6 +119,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    // Check a new token (and database) with Notion before saving, so "Connected" means it works.
+    if (typeof notionUpdates.notionToken === "string") {
+      try {
+        const { Client } = await import("@notionhq/client");
+        const notion = new Client({ auth: notionUpdates.notionToken, timeoutMs: 8000 });
+        await notion.users.me({});
+        if (typeof notionUpdates.notionDatabaseId === "string" && notionUpdates.notionDatabaseId) {
+          await notion.databases.retrieve({ database_id: notionUpdates.notionDatabaseId });
+        }
+      } catch {
+        return res.status(400).json({
+          error: "Notion didn't accept this token or database. Check the token, and share the database with your integration.",
+        });
+      }
+    }
+
     if (Object.keys(updates).length > 1) {
       await db.update(users).set(updates).where(eq(users.id, payload.userId));
     }

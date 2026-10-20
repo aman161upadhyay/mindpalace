@@ -5,6 +5,7 @@ import { highlights, tags, users } from "../../schema";
 import { getAuthUserIdFromVercelReq } from "../../lib/auth";
 import { applyCors } from "../../lib/cors";
 import { rateLimit, getClientIp } from "../../lib/rate-limit";
+import { buildAiPack, csvRow, isoDay, mdHighlight, mdLinkText, safeFilename, yamlStr, type ExportFile, type ExportHighlight } from "./export-format";
 import { inferTags } from "../../lib/keyword-tags";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -142,11 +143,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json(stats);
     }
 
-    // ── GET ?action=export&format=json|markdown|obsidian|notion-csv ─────────
+    // ── GET ?action=export&format=json|markdown|obsidian|notion-csv|ai-pack ──
     if (req.method === "GET" && action === "export") {
       const format = (req.query.format as string) || "json";
       const groupBy = (req.query.groupBy as string) || "domain";
-      const validFormats = ["json", "markdown", "obsidian", "notion-csv"];
+      const validFormats = ["json", "markdown", "obsidian", "notion-csv", "ai-pack"];
       if (!validFormats.includes(format))
         return res.status(400).json({ error: `Format must be one of: ${validFormats.join(", ")}` });
 
@@ -156,146 +157,92 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ]);
 
       const tagMap = Object.fromEntries(allTags.map((t) => [t.id, t]));
-
-      // Helper: resolve tag names for a highlight
-      const getTagNames = (h: typeof allHighlights[0]) =>
-        (JSON.parse(h.tagIds || "[]") as number[]).map((id) => tagMap[id]?.name).filter(Boolean) as string[];
-      const getMetadataTags = (h: typeof allHighlights[0]) => {
-        try { return JSON.parse(h.metadataTags || "[]") as string[]; } catch { return []; }
+      const parseList = <T,>(raw: string | null): T[] => {
+        try { const v = JSON.parse(raw || "[]"); return Array.isArray(v) ? (v as T[]) : []; } catch { return []; }
       };
+      const items: ExportHighlight[] = allHighlights.map((h) => ({
+        id: h.id,
+        text: h.text,
+        sourceUrl: h.sourceUrl,
+        pageTitle: h.pageTitle,
+        domain: h.domain,
+        notes: h.notes,
+        tags: parseList<number>(h.tagIds).map((id) => tagMap[id]?.name).filter(Boolean) as string[],
+        topics: parseList<string>(h.metadataTags),
+        createdAt: h.createdAt,
+      }));
 
       // ── JSON ──
       if (format === "json") {
-        const data = allHighlights.map((h) => ({
-          id: h.id,
-          text: h.text,
-          sourceUrl: h.sourceUrl,
-          pageTitle: h.pageTitle,
-          domain: h.domain,
-          notes: h.notes,
-          tags: getTagNames(h),
-          metadataTags: getMetadataTags(h),
-          createdAt: h.createdAt,
-        }));
+        const data = items.map(({ topics, ...h }) => ({ ...h, metadataTags: topics }));
         return res.status(200).json({ content: JSON.stringify(data, null, 2), filename: "highlights.json" });
       }
 
       // ── Markdown (single file, grouped by domain) ──
       if (format === "markdown") {
-        const grouped: Record<string, typeof allHighlights> = {};
-        for (const h of allHighlights) {
+        const grouped = new Map<string, ExportHighlight[]>();
+        for (const h of items) {
           const key = h.domain || "Unknown Source";
-          if (!grouped[key]) grouped[key] = [];
-          grouped[key].push(h);
+          grouped.set(key, [...(grouped.get(key) ?? []), h]);
         }
-
-        let md = `# My Mind Palace\n\n*Exported ${new Date().toLocaleDateString()}*\n\n---\n\n`;
-        for (const [domain, items] of Object.entries(grouped)) {
-          md += `## ${domain}\n\n`;
-          for (const h of items) {
-            const tagNames = getTagNames(h);
-            md += `> ${h.text}\n\n`;
-            md += `**Source:** [${h.pageTitle || h.sourceUrl}](${h.sourceUrl})  \n`;
-            md += `**Saved:** ${new Date(h.createdAt).toLocaleDateString()}  \n`;
-            if (tagNames.length) md += `**Tags:** ${tagNames.join(", ")}  \n`;
-            if (h.notes) md += `**Notes:** ${h.notes}  \n`;
-            md += `\n---\n\n`;
-          }
+        let md = `# My Mind Palace\n\n*Exported ${isoDay(new Date())} · ${items.length} highlights*\n\n---\n\n`;
+        for (const [domain, group] of grouped) {
+          md += `## ${mdLinkText(domain)}\n\n`;
+          for (const h of group) md += mdHighlight(h);
         }
         return res.status(200).json({ content: md, filename: "highlights.md" });
       }
 
-      // ── Obsidian (multiple MD files with YAML frontmatter, grouped by topic/tag/domain) ──
+      // ── AI brain pack (ZIP built client-side from files[]) ──
+      if (format === "ai-pack") {
+        const files = buildAiPack(items);
+        return res.status(200).json({ files, totalFiles: files.length, filename: "mind-palace-ai-brain.zip" });
+      }
+
+      // ── Obsidian (multiple MD files with YAML frontmatter, grouped by topic/tag/domain/source) ──
       if (format === "obsidian") {
         const validGroupBy = ["topic", "tag", "domain", "source", "all"];
         const gBy = validGroupBy.includes(groupBy) ? groupBy : "topic";
 
-        // Group highlights
-        const grouped: Record<string, typeof allHighlights> = {};
-        for (const h of allHighlights) {
-          let keys: string[] = [];
-          if (gBy === "topic") {
-            keys = getMetadataTags(h);
-            if (keys.length === 0) keys = ["Uncategorized"];
-          } else if (gBy === "tag") {
-            keys = getTagNames(h);
-            if (keys.length === 0) keys = ["Untagged"];
-          } else if (gBy === "domain") {
-            keys = [h.domain || "Unknown Source"];
-          } else if (gBy === "source") {
-            keys = [h.pageTitle || h.sourceUrl || "Unknown"];
-          } else {
-            keys = ["All Highlights"];
-          }
-          for (const key of keys) {
-            if (!grouped[key]) grouped[key] = [];
-            grouped[key].push(h);
-          }
+        const grouped = new Map<string, ExportHighlight[]>();
+        for (const h of items) {
+          let keys: string[];
+          if (gBy === "topic") keys = h.topics.length ? h.topics : ["Uncategorized"];
+          else if (gBy === "tag") keys = h.tags.length ? h.tags : ["Untagged"];
+          else if (gBy === "domain") keys = [h.domain || "Unknown Source"];
+          else if (gBy === "source") keys = [h.pageTitle || h.sourceUrl || "Unknown"];
+          else keys = ["All Highlights"];
+          for (const key of keys) grouped.set(key, [...(grouped.get(key) ?? []), h]);
         }
 
-        // Generate files array
-        const files: Array<{ filename: string; content: string }> = [];
-        for (const [groupName, items] of Object.entries(grouped)) {
-          const safeFilename = groupName.replace(/[<>:"/\\|?*]/g, "-").trim();
-          // Collect all tags/topics for this group
-          const allGroupTags = new Set<string>();
-          const allGroupTopics = new Set<string>();
-          for (const h of items) {
-            getTagNames(h).forEach((t) => allGroupTags.add(t));
-            getMetadataTags(h).forEach((t) => allGroupTopics.add(t));
-          }
-
+        const used = new Set<string>();
+        const files: ExportFile[] = [];
+        const exported = new Date().toISOString();
+        for (const [groupName, group] of grouped) {
+          const groupTags = [...new Set(group.flatMap((h) => h.tags))];
+          const groupTopics = [...new Set(group.flatMap((h) => h.topics))];
           let md = `---\n`;
-          md += `title: "${groupName}"\n`;
+          md += `title: ${yamlStr(groupName)}\n`;
           md += `type: mind-palace-export\n`;
           md += `group_by: ${gBy}\n`;
-          md += `exported: ${new Date().toISOString()}\n`;
-          md += `highlight_count: ${items.length}\n`;
-          if (allGroupTags.size > 0) md += `tags:\n${[...allGroupTags].map((t) => `  - "${t}"`).join("\n")}\n`;
-          if (allGroupTopics.size > 0) md += `topics:\n${[...allGroupTopics].map((t) => `  - "${t}"`).join("\n")}\n`;
-          md += `---\n\n`;
-          md += `# ${groupName}\n\n`;
-          md += `> ${items.length} highlights from Mind Palace\n\n---\n\n`;
-
-          for (const h of items) {
-            const tagNames = getTagNames(h);
-            const metaTags = getMetadataTags(h);
-            md += `## ${h.pageTitle || "Untitled"}\n\n`;
-            md += `> ${h.text}\n\n`;
-            md += `- **Source:** [${h.pageTitle || h.sourceUrl}](${h.sourceUrl})\n`;
-            md += `- **Domain:** ${h.domain || "N/A"}\n`;
-            md += `- **Saved:** ${new Date(h.createdAt).toISOString().split("T")[0]}\n`;
-            if (tagNames.length) md += `- **Tags:** ${tagNames.map((t) => `#${t.replace(/\s+/g, "-")}`).join(" ")}\n`;
-            if (metaTags.length) md += `- **Topics:** ${metaTags.join(", ")}\n`;
-            if (h.notes) md += `- **Notes:** ${h.notes}\n`;
-            md += `\n---\n\n`;
-          }
-
-          files.push({ filename: `Mind Palace - ${safeFilename}.md`, content: md });
+          md += `exported: ${exported}\n`;
+          md += `highlight_count: ${group.length}\n`;
+          if (groupTags.length) md += `tags:\n${groupTags.map((t) => `  - ${yamlStr(t)}`).join("\n")}\n`;
+          if (groupTopics.length) md += `topics:\n${groupTopics.map((t) => `  - ${yamlStr(t)}`).join("\n")}\n`;
+          md += `---\n\n# ${mdLinkText(groupName)}\n\n> ${group.length} highlights from Mind Palace\n\n---\n\n`;
+          for (const h of group) md += mdHighlight(h, { heading: `## ${mdLinkText(h.pageTitle || "Untitled")}` });
+          files.push({ filename: safeFilename(`Mind Palace - ${groupName}`, used), content: md });
         }
-
         return res.status(200).json({ files, groupBy: gBy, totalFiles: files.length });
       }
 
       // ── Notion CSV ──
       if (format === "notion-csv") {
-        const rows = [["Title", "Highlight Text", "Source URL", "Domain", "Tags", "Topics", "Notes", "Date Saved"]];
-        for (const h of allHighlights) {
-          const tagNames = getTagNames(h);
-          const metaTags = getMetadataTags(h);
-          rows.push([
-            h.pageTitle || "Untitled",
-            h.text.replace(/"/g, '""'),
-            h.sourceUrl,
-            h.domain,
-            tagNames.join(", "),
-            metaTags.join(", "),
-            (h.notes || "").replace(/"/g, '""'),
-            new Date(h.createdAt).toISOString().split("T")[0],
-          ]);
+        const rows = [csvRow(["Title", "Highlight Text", "Source URL", "Domain", "Tags", "Topics", "Notes", "Date Saved"])];
+        for (const h of items) {
+          rows.push(csvRow([h.pageTitle || "Untitled", h.text, h.sourceUrl, h.domain, h.tags.join(", "), h.topics.join(", "), h.notes || "", isoDay(h.createdAt)]));
         }
-        const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
-        return res.status(200).json({ content: csv, filename: "mind-palace-notion.csv" });
+        return res.status(200).json({ content: rows.join("\r\n"), filename: "mind-palace-notion.csv" });
       }
 
       return res.status(400).json({ error: "Unknown format" });
@@ -371,7 +318,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       // Update last sync timestamp
-      await db.update(users).set({ notionLastSync: new Date() }).where(eq(users.id, userId));
+      if (synced > 0) await db.update(users).set({ notionLastSync: new Date() }).where(eq(users.id, userId));
 
       return res.status(200).json({
         success: true,
@@ -384,55 +331,103 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ── POST ?action=import — Bulk import highlights from Twitter/Reddit/JSON ──
     if (req.method === "POST" && action === "import") {
-      const ip = getClientIp(req.headers);
-      const { allowed } = rateLimit(`import:${ip}`, { windowMs: 60_000, max: 10 });
-      if (!allowed) return res.status(429).json({ error: "Too many requests" });
+      const { allowed } = rateLimit(`import:${userId}`, { windowMs: 60_000, max: 30 });
+      if (!allowed) return res.status(429).json({ error: "Too many imports in a minute. Please wait and try again." });
 
-      const source = (req.body?.source as string) || "manual";
-      const items = req.body?.items as Array<{ text: string; sourceUrl: string; pageTitle?: string; domain?: string; notes?: string }>;
-
-      if (!Array.isArray(items) || items.length === 0)
+      const source = typeof req.body?.source === "string" ? req.body.source.replace(/[^a-z0-9-]/gi, "").slice(0, 32) || "manual" : "manual";
+      const rawItems = req.body?.items;
+      if (!Array.isArray(rawItems) || rawItems.length === 0)
         return res.status(400).json({ error: "Items array is required" });
-      if (items.length > 500)
-        return res.status(400).json({ error: "Maximum 500 items per import" });
+      if (rawItems.length > 500)
+        return res.status(400).json({ error: "Maximum 500 items per request" });
 
-      let imported = 0;
-      let skipped = 0;
-      for (const item of items) {
-        if (!item.text || typeof item.text !== "string" || item.text.length === 0) { skipped++; continue; }
-        if (item.text.length > 50000) { skipped++; continue; }
+      // Skip highlights the user already has, so importing the same file twice is harmless.
+      const existing = await db
+        .select({ text: highlights.text, sourceUrl: highlights.sourceUrl })
+        .from(highlights)
+        .where(and(eq(highlights.userId, userId), isNull(highlights.deletedAt)));
+      const seen = new Set(existing.map((r) => `${r.sourceUrl}\u0000${r.text}`));
 
-        const sourceUrl = item.sourceUrl && /^https?:\/\//i.test(item.sourceUrl)
-          ? item.sourceUrl
-          : `https://import.mindpalace/${source}`;
-        const domain = item.domain || (() => { try { return new URL(sourceUrl).hostname; } catch { return source; } })();
-        const metadataTags = inferTags(item.text);
-
-        try {
-          await db.insert(highlights).values({
-            userId,
-            text: item.text.slice(0, 50000),
-            sourceUrl,
-            pageTitle: (item.pageTitle || "").slice(0, 512),
-            domain: domain.slice(0, 255),
-            notes: item.notes || null,
-            tagIds: "[]",
-            metadataTags: JSON.stringify(metadataTags),
-          });
-          imported++;
-        } catch (e) {
-          console.error("[import] Insert error:", e);
-          skipped++;
+      const userTags = await db.select({ id: tags.id, name: tags.name }).from(tags).where(eq(tags.userId, userId));
+      const tagIdByName = new Map(userTags.map((t) => [t.name.toLowerCase(), t.id]));
+      const tagIdsFor = async (names: unknown): Promise<number[]> => {
+        if (!Array.isArray(names)) return [];
+        const ids: number[] = [];
+        for (const raw of names.slice(0, 20)) {
+          const name = typeof raw === "string" ? raw.trim().slice(0, 64) : "";
+          if (!name) continue;
+          let id = tagIdByName.get(name.toLowerCase());
+          if (id === undefined) {
+            if (tagIdByName.size >= 500) continue;
+            const [created] = await db.insert(tags).values({ userId, name }).returning({ id: tags.id });
+            id = created.id;
+            tagIdByName.set(name.toLowerCase(), id);
+          }
+          if (!ids.includes(id)) ids.push(id);
         }
+        return ids;
+      };
+      const topicsJson = (topics: string[]) => {
+        const list = [...topics];
+        while (list.length && JSON.stringify(list).length > 1024) list.pop();
+        return JSON.stringify(list);
+      };
+
+      const rows: Array<typeof highlights.$inferInsert> = [];
+      let skipped = 0;
+      let duplicates = 0;
+      for (const raw of rawItems) {
+        const item = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+        const text = typeof item.text === "string" ? item.text.trim() : "";
+        if (!text || text.length > 50000) { skipped++; continue; }
+
+        const sourceUrl = typeof item.sourceUrl === "string" && /^https?:\/\//i.test(item.sourceUrl)
+          ? item.sourceUrl.slice(0, 2048)
+          : `https://import.mindpalace/${source}`;
+        const key = `${sourceUrl}\u0000${text}`;
+        if (seen.has(key)) { duplicates++; continue; }
+        seen.add(key);
+
+        const domain = typeof item.domain === "string" && item.domain
+          ? item.domain
+          : (() => { try { return new URL(sourceUrl).hostname.replace(/^www\./, ""); } catch { return source; } })();
+        const givenTopics = Array.isArray(item.metadataTags) ? item.metadataTags : Array.isArray(item.topics) ? item.topics : null;
+        const topics = givenTopics
+          ? givenTopics.filter((t): t is string => typeof t === "string" && t.trim() !== "").map((t) => t.trim().slice(0, 64)).slice(0, 20)
+          : inferTags(text);
+        const when = typeof item.createdAt === "string" ? item.createdAt : typeof item.savedAt === "string" ? item.savedAt : "";
+        const parsed = when ? new Date(when) : null;
+        const createdAt = parsed && !Number.isNaN(parsed.getTime()) && parsed.getFullYear() >= 2000 && parsed.getTime() <= Date.now() + 86_400_000
+          ? parsed
+          : new Date();
+
+        rows.push({
+          userId,
+          text,
+          sourceUrl,
+          pageTitle: typeof item.pageTitle === "string" ? item.pageTitle.slice(0, 512) : "",
+          domain: domain.slice(0, 255),
+          notes: typeof item.notes === "string" && item.notes.trim() ? item.notes.slice(0, 100_000) : null,
+          tagIds: JSON.stringify(await tagIdsFor(item.tags)),
+          metadataTags: topicsJson(topics),
+          createdAt,
+          updatedAt: createdAt,
+        });
       }
 
+      // Batched inserts keep large imports fast on the serverless database driver.
+      for (let i = 0; i < rows.length; i += 100) await db.insert(highlights).values(rows.slice(i, i + 100));
+
+      const imported = rows.length;
+      const parts = [duplicates ? `${duplicates} already in your library` : "", skipped ? `${skipped} skipped` : ""].filter(Boolean);
       return res.status(201).json({
         success: true,
         imported,
         skipped,
-        total: items.length,
+        duplicates,
+        total: rawItems.length,
         source,
-        message: `Imported ${imported} highlights from ${source}${skipped > 0 ? ` (${skipped} skipped)` : ""}`,
+        message: `Imported ${imported} highlights${parts.length ? ` (${parts.join(", ")})` : ""}`,
       });
     }
 
@@ -526,8 +521,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           userId,
           text,
           sourceUrl,
-          pageTitle: (pageTitle as string) || "",
-          domain: (domain as string) || "",
+          pageTitle: typeof pageTitle === "string" ? pageTitle.slice(0, 512) : "",
+          domain: typeof domain === "string" ? domain.slice(0, 255) : "",
           notes: null,
           tagIds: "[]",
           metadataTags: JSON.stringify(metadataTags),

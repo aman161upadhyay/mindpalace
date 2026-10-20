@@ -52,14 +52,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } catch {
       // Silently fail — local state already updated
     }
-
-    if (document.documentElement.getAttribute("data-hc-extension") === "true") {
-      document.dispatchEvent(
-        new CustomEvent("HC_SAVE_SETTINGS", {
-          detail: { theme: newTheme },
-        })
-      );
-    }
   };
 
   return (

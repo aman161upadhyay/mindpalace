@@ -584,6 +584,9 @@ export default function Settings() {
               </div>
               <button
                 onClick={toggleTheme}
+                role="switch"
+                aria-checked={theme === "dark"}
+                aria-label="Dark theme"
                 className="relative w-14 h-7 rounded-full bg-secondary border border-border transition-colors shrink-0"
               >
                 <span
@@ -615,6 +618,9 @@ export default function Settings() {
               <button
                 onClick={toggleDailyEmail}
                 disabled={dailyEmailSaving}
+                role="switch"
+                aria-checked={dailyEmail}
+                aria-label="Daily highlights email"
                 className={`relative w-14 h-7 rounded-full border border-border transition-colors shrink-0 ${
                   dailyEmail ? "bg-primary/20" : "bg-secondary"
                 } ${dailyEmailSaving ? "opacity-50" : ""}`}
@@ -813,14 +819,13 @@ export default function Settings() {
                       1
                     </span>
                     <div>
-                      <p className="text-sm font-medium">Load the extension</p>
+                      <p className="text-sm font-medium">Install the extension</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Open{" "}
-                        <code className="font-mono text-xs bg-secondary/50 px-1 rounded">
-                          chrome://extensions
-                        </code>
-                        , enable Developer mode, click "Load unpacked", and select the extension
-                        folder.
+                        Open 
+                        <a href="https://chromewebstore.google.com/detail/mind-palace/hfjlflceaophbbeadanbpibaaidbjoao" target="_blank" rel="noreferrer" className="text-primary underline">
+                          Mind Palace on the Chrome Web Store
+                        </a> 
+                        and click <em>Add to Chrome</em>.
                       </p>
                     </div>
                   </li>

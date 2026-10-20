@@ -28,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { parseImportFile, type ImportSource } from "@/lib/import-parsers";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -120,9 +121,10 @@ function HighlightCard({
 
       {/* Delete button */}
       <button
-        className="absolute top-3 right-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+        className="absolute top-3 right-3 z-20 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        title="Delete highlight"
+        title="Move to Trash"
+        aria-label="Move highlight to Trash"
       >
         <Trash2 className="w-3.5 h-3.5" />
       </button>
@@ -314,7 +316,7 @@ function HighlightDetailModal({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden grid grid-cols-[1fr_200px] min-h-0">
+        <div className="flex-1 overflow-y-auto md:overflow-hidden grid grid-cols-1 md:grid-cols-[1fr_200px] min-h-0">
           {isLoading ? (
             <div className="col-span-2 p-6 space-y-3">
               <Skeleton className="h-24 w-full rounded-xl" />
@@ -491,9 +493,9 @@ function HighlightDetailModal({
       </DialogContent>
       <ConfirmDialog
         open={showDeleteConfirm}
-        title="Delete highlight?"
-        description="This cannot be undone. The highlight will be permanently removed from your Mind Palace."
-        confirmLabel="Delete"
+        title="Move to Trash?"
+        description="The highlight moves to Trash. You can restore it from there, or delete it forever."
+        confirmLabel="Move to Trash"
         onConfirm={() => { setShowDeleteConfirm(false); handleDelete(); }}
         onCancel={() => setShowDeleteConfirm(false)}
       />
@@ -501,12 +503,13 @@ function HighlightDetailModal({
   );
 }
 
-// ─── Export Modal (enhanced: JSON, Markdown, Obsidian, Notion CSV) ────────────
+// ─── Export Modal (AI brain pack, JSON, Markdown, Obsidian, Notion CSV) ──────
 
-type ExportFormat = "json" | "markdown" | "obsidian" | "notion-csv";
+type ExportFormat = "ai-pack" | "json" | "markdown" | "obsidian" | "notion-csv";
 type ObsidianGroupBy = "topic" | "tag" | "domain" | "source" | "all";
 
 const FORMAT_INFO: Record<ExportFormat, { label: string; desc: string; icon: string }> = {
+  "ai-pack": { label: "AI Brain Pack", desc: "For NotebookLM, ChatGPT, Claude & local AI", icon: "AI" },
   json: { label: "JSON", desc: "Structured data", icon: "{ }" },
   markdown: { label: "Markdown", desc: "Single MD file", icon: "MD" },
   obsidian: { label: "Obsidian", desc: "Multi-file with YAML frontmatter", icon: "Ob" },
@@ -522,7 +525,7 @@ const GROUPBY_INFO: Record<ObsidianGroupBy, { label: string; desc: string }> = {
 };
 
 function ExportModal({ onClose }: { onClose: () => void }) {
-  const [format, setFormat] = useState<ExportFormat>("json");
+  const [format, setFormat] = useState<ExportFormat>("ai-pack");
   const [groupBy, setGroupBy] = useState<ObsidianGroupBy>("topic");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -532,10 +535,15 @@ function ExportModal({ onClose }: { onClose: () => void }) {
       const params = new URLSearchParams({ action: "export", format });
       if (format === "obsidian") params.set("groupBy", groupBy);
       const res = await fetch(`/api/highlights?${params}`, { credentials: "include" });
-      if (!res.ok) { toast.error("Export failed"); return; }
+      if (!res.ok) {
+        let msg = "Export failed. Please try again.";
+        try { msg = (await res.json()).error || msg; } catch { /* body was not JSON */ }
+        toast.error(msg);
+        return;
+      }
       const data = await res.json();
 
-      if (format === "obsidian" && data.files) {
+      if (data.files) {
         // Generate ZIP with multiple MD files using JSZip
         const JSZip = (await import("jszip")).default;
         const zip = new JSZip();
@@ -546,10 +554,10 @@ function ExportModal({ onClose }: { onClose: () => void }) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `mind-palace-obsidian-${groupBy}.zip`;
+        a.download = data.filename || `mind-palace-obsidian-${groupBy}.zip`;
         a.click();
         URL.revokeObjectURL(url);
-        toast.success(`Exported ${data.totalFiles} Obsidian files as ZIP`);
+        toast.success(format === "ai-pack" ? "AI Brain Pack downloaded" : `Exported ${data.totalFiles} Obsidian files as ZIP`);
       } else {
         // Single file download
         const mimeTypes: Record<string, string> = {
@@ -557,7 +565,9 @@ function ExportModal({ onClose }: { onClose: () => void }) {
           markdown: "text/markdown",
           "notion-csv": "text/csv",
         };
-        const blob = new Blob([data.content], { type: mimeTypes[format] || "text/plain" });
+        // A byte-order mark lets Excel open the CSV as UTF-8 (accents, emoji).
+        const content = format === "notion-csv" ? "\uFEFF" + data.content : data.content;
+        const blob = new Blob([content], { type: mimeTypes[format] || "text/plain" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -644,6 +654,17 @@ function ExportModal({ onClose }: { onClose: () => void }) {
             </div>
           )}
 
+          {/* AI brain pack info */}
+          {format === "ai-pack" && (
+            <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                <strong>Your highlights, ready for AI.</strong> A ZIP with one note per page you read, an index,
+                a <code>highlights.jsonl</code> file and a README with step-by-step instructions for NotebookLM,
+                ChatGPT / Claude Projects, Obsidian and private local AI (Ollama + AnythingLLM).
+              </p>
+            </div>
+          )}
+
           {/* Notion CSV info */}
           {format === "notion-csv" && (
             <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
@@ -657,7 +678,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
 
           <Button className="w-full" onClick={handleExport} disabled={isLoading}>
             {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-            {format === "obsidian" ? `Download ZIP (grouped by ${groupBy})` : `Download ${FORMAT_INFO[format].label}`}
+            {format === "obsidian" ? `Download ZIP (grouped by ${groupBy})` : format === "ai-pack" ? "Download AI Brain Pack (ZIP)" : `Download ${FORMAT_INFO[format].label}`}
           </Button>
         </div>
       </DialogContent>
@@ -667,7 +688,6 @@ function ExportModal({ onClose }: { onClose: () => void }) {
 
 // ─── Import Modal (Twitter bookmarks, Reddit saved, JSON/CSV) ─────────────────
 
-type ImportSource = "twitter" | "reddit" | "json" | "csv";
 
 function ImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
   const [source, setSource] = useState<ImportSource>("twitter");
@@ -676,158 +696,12 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
   const [preview, setPreview] = useState<Array<{ text: string; sourceUrl: string; pageTitle: string }>>([]);
   const [result, setResult] = useState<{ imported: number; skipped: number; total: number } | null>(null);
 
+  const [itemCount, setItemCount] = useState(0);
+
   const parseFile = async (f: File) => {
-    const text = await f.text();
-    let items: Array<{ text: string; sourceUrl: string; pageTitle?: string; domain?: string; notes?: string }> = [];
-
-    if (source === "twitter") {
-      // Twitter data export: can be in multiple formats
-      try {
-        const data = JSON.parse(text);
-        // Twitter data archive format: array of tweet objects or bookmarks
-        const tweets = Array.isArray(data)
-          ? data
-          : data.data || data.bookmarks || data.tweets || [];
-
-        for (const tweet of tweets) {
-          // Handle various Twitter export formats
-          const tweetData = tweet.tweet || tweet;
-          const tweetText = tweetData.full_text || tweetData.text || tweetData.content || "";
-          if (!tweetText || tweetText.length < 5) continue;
-
-          // Extract URLs from tweet
-          const urls = tweetData.entities?.urls || [];
-          const expandedUrl = urls[0]?.expanded_url || urls[0]?.url || "";
-          const tweetUrl = tweetData.id_str || tweetData.id
-            ? `https://x.com/i/status/${tweetData.id_str || tweetData.id}`
-            : expandedUrl || "https://x.com";
-
-          const author = tweetData.user?.screen_name || tweetData.author?.username || tweetData.username || "";
-
-          items.push({
-            text: tweetText,
-            sourceUrl: tweetUrl,
-            pageTitle: author ? `@${author} on X` : "X/Twitter Bookmark",
-            domain: "x.com",
-            notes: expandedUrl ? `Linked: ${expandedUrl}` : undefined,
-          });
-        }
-      } catch {
-        // Fallback: try line-by-line (user may have a simple text export)
-        for (const line of text.split("\n").filter(Boolean)) {
-          if (line.trim().length > 5) {
-            items.push({
-              text: line.trim(),
-              sourceUrl: "https://x.com",
-              pageTitle: "X/Twitter Bookmark",
-              domain: "x.com",
-            });
-          }
-        }
-      }
-    } else if (source === "reddit") {
-      // Reddit data export: saved_posts.csv, saved_comments.csv, or JSON
-      try {
-        const data = JSON.parse(text);
-        const posts = Array.isArray(data) ? data : data.data || data.saved || data.children?.map((c: any) => c.data) || [];
-        for (const post of posts) {
-          const postData = post.data || post;
-          const postText = postData.selftext || postData.body || postData.title || postData.link_title || "";
-          if (!postText || postText.length < 5) continue;
-
-          const permalink = postData.permalink
-            ? `https://reddit.com${postData.permalink}`
-            : postData.url || "https://reddit.com";
-          const subreddit = postData.subreddit || postData.subreddit_name_prefixed || "";
-          const title = postData.title || postData.link_title || "";
-
-          items.push({
-            text: postText.slice(0, 50000),
-            sourceUrl: permalink,
-            pageTitle: title || `r/${subreddit} post`,
-            domain: "reddit.com",
-            notes: subreddit ? `Subreddit: r/${subreddit}` : undefined,
-          });
-        }
-      } catch {
-        // Try CSV parsing (Reddit CSV export)
-        const lines = text.split("\n");
-        const header = lines[0]?.toLowerCase() || "";
-        const isCSV = header.includes("id") || header.includes("permalink") || header.includes("body");
-        if (isCSV) {
-          for (let i = 1; i < lines.length; i++) {
-            const cols = lines[i].split(",");
-            if (cols.length >= 2) {
-              const permalink = cols.find(c => c.includes("reddit.com")) || "https://reddit.com";
-              const bodyText = cols.slice(1).join(",").replace(/^"|"$/g, "");
-              if (bodyText.length > 5) {
-                items.push({
-                  text: bodyText,
-                  sourceUrl: permalink.replace(/^"|"$/g, ""),
-                  pageTitle: "Reddit Saved Post",
-                  domain: "reddit.com",
-                });
-              }
-            }
-          }
-        } else {
-          // Plain text fallback
-          for (const line of text.split("\n").filter(Boolean)) {
-            if (line.trim().length > 5) {
-              items.push({
-                text: line.trim(),
-                sourceUrl: "https://reddit.com",
-                pageTitle: "Reddit Saved Post",
-                domain: "reddit.com",
-              });
-            }
-          }
-        }
-      }
-    } else if (source === "json") {
-      // Generic JSON import
-      try {
-        const data = JSON.parse(text);
-        const arr = Array.isArray(data) ? data : data.items || data.highlights || [data];
-        for (const item of arr) {
-          if (item.text && item.text.length > 0) {
-            items.push({
-              text: item.text,
-              sourceUrl: item.sourceUrl || item.url || item.source_url || item.link || "https://import.mindpalace/json",
-              pageTitle: item.pageTitle || item.title || item.page_title || "",
-              domain: item.domain || "",
-              notes: item.notes || item.note || "",
-            });
-          }
-        }
-      } catch {
-        toast.error("Invalid JSON file");
-        return;
-      }
-    } else if (source === "csv") {
-      // Generic CSV import (expects: text, sourceUrl, pageTitle, notes)
-      const lines = text.split("\n");
-      for (let i = 1; i < lines.length; i++) {
-        // Simple CSV parse (handles quoted fields)
-        const match = lines[i].match(/(?:"([^"]*(?:""[^"]*)*)"|([^,]*))/g);
-        if (match && match.length >= 1) {
-          const clean = (s: string) => s.replace(/^"|"$/g, "").replace(/""/g, '"').trim();
-          const row = match.map(clean);
-          if (row[0] && row[0].length > 0) {
-            items.push({
-              text: row[0],
-              sourceUrl: row[1] || "https://import.mindpalace/csv",
-              pageTitle: row[2] || "",
-              notes: row[3] || "",
-            });
-          }
-        }
-      }
-    }
-
-    // Deduplicate and limit
-    items = items.slice(0, 500);
-    setPreview(items.slice(0, 10).map(i => ({ text: i.text.slice(0, 200), sourceUrl: i.sourceUrl, pageTitle: i.pageTitle || "" })));
+    const { items, error } = parseImportFile(source, await f.text());
+    setItemCount(items.length);
+    if (error && items.length === 0) toast.error(error);
     return items;
   };
 
@@ -837,29 +711,32 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
     setResult(null);
     try {
       const items = await parseFile(file);
-      if (!items || items.length === 0) {
-        toast.error("No importable items found in file");
-        setIsLoading(false);
-        return;
-      }
+      if (!items || items.length === 0) return;
 
-      const res = await fetch("/api/highlights?action=import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ source, items }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setResult({ imported: data.imported, skipped: data.skipped, total: data.total });
-        toast.success(data.message);
-        onImported();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Import failed");
+      // The server accepts 500 items per request; send big files in batches.
+      let imported = 0, skipped = 0, duplicates = 0;
+      for (let i = 0; i < items.length; i += 500) {
+        const res = await fetch("/api/highlights?action=import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ source, items: items.slice(i, i + 500) }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error(`${data.error || "Import failed"}${imported ? ` (${imported} imported before the error)` : ""}`);
+          if (imported) onImported();
+          return;
+        }
+        imported += data.imported || 0;
+        skipped += data.skipped || 0;
+        duplicates += data.duplicates || 0;
       }
-    } catch (err) {
+      setResult({ imported, skipped: skipped + duplicates, total: items.length });
+      const notes = [duplicates ? `${duplicates} already in your library` : "", skipped ? `${skipped} skipped` : ""].filter(Boolean);
+      toast.success(`Imported ${imported} of ${items.length} highlights${notes.length ? ` (${notes.join(", ")})` : ""}`);
+      onImported();
+    } catch {
       toast.error("Import failed");
     } finally {
       setIsLoading(false);
@@ -928,9 +805,8 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
                 <ol className="list-decimal ml-4 space-y-0.5">
                   <li>Go to <a href="https://x.com/settings/download_your_data" target="_blank" rel="noreferrer" className="underline text-primary">x.com/settings/download_your_data</a></li>
                   <li>Request your archive and wait for the email</li>
-                  <li>Download and unzip → find <code className="font-mono bg-secondary px-1 rounded">data/like.js</code> or <code className="font-mono bg-secondary px-1 rounded">data/bookmark.js</code></li>
-                  <li>Remove the first line (<code className="font-mono bg-secondary px-1 rounded">window.YTD.like.part0 =</code>) to make it valid JSON</li>
-                  <li>Upload the resulting JSON file here</li>
+                  <li>Download and unzip → find <code className="font-mono bg-secondary px-1 rounded">data/like.js</code>, <code className="font-mono bg-secondary px-1 rounded">data/bookmark.js</code> or <code className="font-mono bg-secondary px-1 rounded">data/tweets.js</code></li>
+                  <li>Upload that file here as it is — no editing needed</li>
                 </ol>
               </div>
             )}
@@ -943,18 +819,18 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
                   <li>Download and unzip → find <code className="font-mono bg-secondary px-1 rounded">saved_posts.csv</code> or <code className="font-mono bg-secondary px-1 rounded">saved_comments.csv</code></li>
                   <li>Upload the file here</li>
                 </ol>
-                <p className="mt-1">Or use a tool like <a href="https://github.com/aliparlakci/bulk-downloader-for-reddit" target="_blank" rel="noreferrer" className="underline text-primary">reddit-saved-exporter</a> to export as JSON.</p>
+                <p className="mt-1">Reddit JSON listings (for example from <code className="font-mono bg-secondary px-1 rounded">reddit.com/user/you/saved.json</code>) also work.</p>
               </div>
             )}
             {source === "json" && (
               <p className="text-xs text-muted-foreground">
-                Upload a JSON file with an array of objects. Each object should have at minimum a <code className="font-mono bg-secondary px-1 rounded">text</code> field.
-                Optional fields: <code className="font-mono bg-secondary px-1 rounded">sourceUrl</code>, <code className="font-mono bg-secondary px-1 rounded">pageTitle</code>, <code className="font-mono bg-secondary px-1 rounded">notes</code>.
+                Upload a Mind Palace JSON export, the <code className="font-mono bg-secondary px-1 rounded">highlights.jsonl</code> file from an AI Brain Pack, or any JSON array of objects with a <code className="font-mono bg-secondary px-1 rounded">text</code> field.
+                Optional fields: <code className="font-mono bg-secondary px-1 rounded">sourceUrl</code>, <code className="font-mono bg-secondary px-1 rounded">pageTitle</code>, <code className="font-mono bg-secondary px-1 rounded">notes</code>, <code className="font-mono bg-secondary px-1 rounded">tags</code>, <code className="font-mono bg-secondary px-1 rounded">createdAt</code>. Highlights you already have are skipped.
               </p>
             )}
             {source === "csv" && (
               <p className="text-xs text-muted-foreground">
-                Upload a CSV with columns: <code className="font-mono bg-secondary px-1 rounded">text, sourceUrl, pageTitle, notes</code> (first row = header).
+                Upload a CSV whose first row is a header with a <code className="font-mono bg-secondary px-1 rounded">text</code> column; optional <code className="font-mono bg-secondary px-1 rounded">sourceUrl, pageTitle, notes, tags</code>. Mind Palace's Notion CSV export works too.
               </p>
             )}
           </div>
@@ -964,7 +840,7 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Choose file</label>
             <input
               type="file"
-              accept={source === "csv" ? ".csv,.txt" : source === "json" ? ".json,.js" : ".json,.csv,.txt,.js"}
+              accept={source === "csv" ? ".csv,.txt" : source === "json" ? ".json,.jsonl,.txt" : ".json,.csv,.txt,.js"}
               onChange={handleFileChange}
               className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border file:border-border file:text-sm file:font-medium file:bg-secondary file:text-foreground hover:file:bg-secondary/80 file:cursor-pointer"
             />
@@ -973,7 +849,7 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
           {/* Preview */}
           {preview.length > 0 && (
             <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">Preview ({preview.length} of {file ? "..." : "0"} items):</p>
+              <p className="text-xs font-medium text-muted-foreground">Preview (first {preview.length} of {itemCount} items):</p>
               <div className="max-h-32 overflow-y-auto space-y-1 p-2 rounded-lg bg-secondary/20 border border-border/30">
                 {preview.map((p, i) => (
                   <div key={i} className="text-xs text-muted-foreground truncate">
@@ -1084,7 +960,8 @@ export default function MindPalace() {
   const { user, isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window === "undefined" || window.innerWidth >= 768);
+  const [confirmPurgeId, setConfirmPurgeId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
@@ -1215,9 +1092,10 @@ export default function MindPalace() {
   };
 
   const handlePurgeHighlight = async (id: number) => {
-    await fetch(`/api/highlights?id=${id}&action=purge`, { method: "DELETE", credentials: "include" });
+    const res = await fetch(`/api/highlights?id=${id}&action=purge`, { method: "DELETE", credentials: "include" });
     fetchTrash();
-    toast.success("Permanently deleted");
+    if (res.ok) toast.success("Deleted forever");
+    else toast.error("Could not delete it. Please try again.");
   };
 
   const highlights = highlightsData?.items ?? [];
@@ -1265,7 +1143,10 @@ export default function MindPalace() {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
-      <aside className={`shrink-0 border-r border-border bg-sidebar flex flex-col h-screen sticky top-0 transition-all duration-300 overflow-hidden ${sidebarOpen ? "w-64" : "w-0 border-r-0"}`}>
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-30 bg-black/50 md:hidden" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
+      )}
+      <aside className={`shrink-0 border-r border-border bg-sidebar flex flex-col h-screen fixed md:sticky top-0 left-0 z-40 md:z-auto transition-all duration-300 overflow-hidden ${sidebarOpen ? "w-64" : "w-0 border-r-0"}`}>
         {/* Logo */}
         <div className="p-4 border-b border-border">
           <div className="flex items-center gap-2 cursor-pointer group" onClick={() => navigate("/")}>
@@ -1344,7 +1225,8 @@ export default function MindPalace() {
                   {t.name}
                 </span>
                 <button
-                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                  className="opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                  aria-label={`Delete tag ${t.name}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDeleteTag(t.id, t.name);
@@ -1429,6 +1311,7 @@ export default function MindPalace() {
               onClick={() => setSidebarOpen((o) => !o)}
               className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
               title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+              aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
               {sidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
             </button>
@@ -1640,7 +1523,7 @@ export default function MindPalace() {
                         size="sm"
                         variant="ghost"
                         className="h-8 px-3 text-xs rounded-full text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handlePurgeHighlight(h.id)}
+                        onClick={() => setConfirmPurgeId(h.id)}
                       >
                         Delete forever
                       </Button>
@@ -1652,6 +1535,14 @@ export default function MindPalace() {
           </DialogContent>
         </Dialog>
       )}
+      <ConfirmDialog
+        open={confirmPurgeId !== null}
+        title="Delete forever?"
+        description="This highlight will be permanently erased. This cannot be undone."
+        confirmLabel="Delete forever"
+        onConfirm={() => { const id = confirmPurgeId; setConfirmPurgeId(null); if (id !== null) handlePurgeHighlight(id); }}
+        onCancel={() => setConfirmPurgeId(null)}
+      />
       <ConfirmDialog
         open={confirmDeleteTag !== null}
         title={`Delete "${confirmDeleteTag?.name}"?`}

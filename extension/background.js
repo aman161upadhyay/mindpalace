@@ -1,6 +1,8 @@
 // Background Service Worker — Mind Palace (MV3)
 
 const DEFAULT_DASHBOARD_URL = "https://themindpalace.org";
+// Store installs have an update_url; unpacked (developer) installs do not.
+const IS_UNPACKED = !("update_url" in chrome.runtime.getManifest());
 
 // Helper to get dynamic settings from storage
 function getSettings() {
@@ -14,6 +16,16 @@ function getSettings() {
   });
 }
 
+// Only https servers (or localhost for developer installs) may be used as the dashboard.
+function normalizeDashboardUrl(raw) {
+  try {
+    const u = new URL(String(raw || "").trim());
+    if (u.protocol === "https:") return u.origin;
+    if (IS_UNPACKED && u.protocol === "http:" && /^(localhost|127\.0\.0\.1)$/.test(u.hostname)) return u.origin;
+  } catch (_) {}
+  return "";
+}
+
 // If the saved server address now redirects to a new home, remember the new one.
 function rememberRedirect(response, currentUrl) {
   try {
@@ -23,6 +35,28 @@ function rememberRedirect(response, currentUrl) {
       chrome.storage.sync.set({ dashboardUrl: next.origin });
     }
   } catch (_) {}
+}
+
+function hostOf(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch (_) { return ""; }
+}
+
+// Short visual confirmation on the toolbar icon (used where no page tooltip can be shown, e.g. PDFs).
+function flashBadge(text, color) {
+  try {
+    chrome.action.setBadgeBackgroundColor({ color });
+    chrome.action.setBadgeText({ text });
+    setTimeout(() => chrome.action.setBadgeText({ text: "" }), 4000);
+  } catch (_) {}
+}
+
+async function friendlyError(response) {
+  let serverMsg = "";
+  try { serverMsg = (await response.json()).error || ""; } catch (_) {}
+  if (response.status === 401) return "Your Mind Palace sign-in has expired. Open themindpalace.org and sign in again.";
+  if (response.status === 429) return "Too many saves in a minute. Please wait a moment and try again.";
+  if (response.status === 400 && serverMsg) return serverMsg;
+  return `Mind Palace server error (${response.status}). Please try again later.`;
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -39,11 +73,29 @@ chrome.runtime.onInstalled.addListener(() => {
 // ─── Context Menu ────────────────────────────────────────────────────────────
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === "save-highlight" && info.selectionText && tab?.id) {
-    chrome.tabs.sendMessage(tab.id, {
-      type: "TRIGGER_SAVE",
-    }, () => { void chrome.runtime.lastError; });
+  if (info.menuItemId !== "save-highlight" || !info.selectionText) return;
+
+  // Fallback for places the content script cannot reach: Chrome's PDF viewer, iframes, pages
+  // opened before the extension was installed. The menu already gives us the selected text.
+  const saveDirectly = () => {
+    const sourceUrl = info.frameUrl || info.pageUrl || (tab && tab.url) || "";
+    handleSaveHighlight({
+      text: info.selectionText,
+      sourceUrl,
+      pageTitle: (tab && tab.title) || "",
+      domain: hostOf(sourceUrl),
+    })
+      .then(() => flashBadge("✓", "#16a34a"))
+      .catch(() => flashBadge("!", "#dc2626"));
+  };
+
+  if (!tab || typeof tab.id !== "number" || tab.id < 0 || (info.frameId && info.frameId !== 0)) {
+    saveDirectly();
+    return;
   }
+  chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_SAVE" }, { frameId: 0 }, () => {
+    if (chrome.runtime.lastError) saveDirectly();
+  });
 });
 
 // ─── Keyboard Command ─────────────────────────────────────────────────────────
@@ -55,23 +107,22 @@ chrome.commands.onCommand.addListener((command) => {
     const tab = tabs && tabs[0];
     if (!tab || !tab.id) return;
 
-    // Guard: content scripts cannot run on chrome:// or edge:// pages
-    const url = tab.url || "";
-    if (url.startsWith("chrome://") || url.startsWith("chrome-extension://") ||
-        url.startsWith("edge://") || url.startsWith("about:")) {
-      return;
-    }
-
-    chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_SAVE" }, () => {
-      // Swallow "Could not establish connection"
-      void chrome.runtime.lastError;
+    chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_SAVE" }, { frameId: 0 }, () => {
+      // No content script here (PDF viewer, browser pages): point the user to the right-click menu.
+      if (chrome.runtime.lastError) {
+        flashBadge("?", "#d97706");
+        try { chrome.action.setTitle({ title: "On PDFs, select text, right-click, then choose \"Save to Mind Palace\"." }); } catch (_) {}
+      }
     });
   });
 });
 
 // ─── Message Handler ──────────────────────────────────────────────────────────
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Only this extension's own pages and content scripts may talk to the background.
+  if (sender.id !== chrome.runtime.id) return;
+
   if (message.type === "SAVE_HIGHLIGHT") {
     handleSaveHighlight(message.payload)
       .then((result) => sendResponse({ success: true, data: result }))
@@ -93,8 +144,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message.type === "SAVE_SETTINGS") {
     const updates = {};
-    if (message.apiToken !== undefined) updates.apiToken = message.apiToken;
-    if (message.dashboardUrl !== undefined) updates.dashboardUrl = message.dashboardUrl;
+    if (typeof message.apiToken === "string") updates.apiToken = message.apiToken.trim();
+    if (typeof message.dashboardUrl === "string") {
+      const url = message.dashboardUrl === "" ? "" : normalizeDashboardUrl(message.dashboardUrl);
+      if (message.dashboardUrl !== "" && !url) {
+        sendResponse({ success: false, error: "The server address must start with https://" });
+        return;
+      }
+      updates.dashboardUrl = url;
+    }
     chrome.storage.sync.set(updates, () => sendResponse({ success: true }));
     return true;
   }
@@ -104,30 +162,31 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 async function handleSaveHighlight(payload) {
   const { apiToken, dashboardUrl } = await getSettings();
-  
+
   if (!apiToken) {
-    throw new Error("Missing API token! Please configure the extension on the settings page.");
+    throw new Error("Not connected yet. Sign in at themindpalace.org to connect the extension.");
   }
 
-  const response = await fetch(`${dashboardUrl}/api/extension/save`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      apiToken,
-      text: payload.text,
-      sourceUrl: payload.sourceUrl,
-      pageTitle: payload.pageTitle,
-      domain: payload.domain,
-    }),
-  });
+  let response;
+  try {
+    response = await fetch(`${dashboardUrl}/api/extension/save`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        apiToken,
+        text: payload.text,
+        sourceUrl: payload.sourceUrl,
+        pageTitle: String(payload.pageTitle || "").slice(0, 500),
+        domain: payload.domain,
+      }),
+    });
+  } catch (_) {
+    throw new Error("Can't reach Mind Palace. Check your internet connection.");
+  }
 
   rememberRedirect(response, dashboardUrl);
 
-  if (!response.ok) {
-    let errText = "";
-    try { errText = await response.text(); } catch (_) {}
-    throw new Error(`Save failed (${response.status}): ${errText.slice(0, 150)}`);
-  }
+  if (!response.ok) throw new Error(await friendlyError(response));
 
   try {
     return await response.json();
@@ -139,21 +198,22 @@ async function handleSaveHighlight(payload) {
 // ─── API: Get Recent ──────────────────────────────────────────────────────────
 
 async function handleGetRecent() {
+  const { apiToken, dashboardUrl } = await getSettings();
+  if (!apiToken) return [];
+
+  const headers = { "Authorization": `Bearer ${apiToken}` };
+  let response;
   try {
-    const { apiToken, dashboardUrl } = await getSettings();
-    if (!apiToken) return [];
-    
-    const headers = { "Authorization": `Bearer ${apiToken}` };
-    let response = await fetch(`${dashboardUrl}/api/extension/recent`, { method: "GET", headers });
+    response = await fetch(`${dashboardUrl}/api/extension/recent`, { method: "GET", headers });
+    rememberRedirect(response, dashboardUrl);
     // Browsers drop Authorization on cross-origin redirects, so retry once at the new address.
     if (response.redirected && response.status === 401) {
       const newOrigin = new URL(response.url).origin;
       response = await fetch(`${newOrigin}/api/extension/recent`, { method: "GET", headers });
     }
-    rememberRedirect(response, dashboardUrl);
-    if (!response.ok) return [];
-    return await response.json();
   } catch (_) {
-    return [];
+    throw new Error("Can't reach Mind Palace. Check your internet connection.");
   }
+  if (!response.ok) throw new Error(await friendlyError(response));
+  return await response.json();
 }

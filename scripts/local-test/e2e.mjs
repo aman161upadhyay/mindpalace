@@ -98,7 +98,7 @@ try {
   await dash.keyboard.press("Escape"); await sleep(400);
 
   // ---- one-click delete -> trash -> restore
-  const delClicked = await dash.evaluate(() => { const b = document.querySelector('button[title="Delete highlight"]'); if (!b) return false; b.click(); return true; });
+  const delClicked = await dash.evaluate(() => { const b = document.querySelector('button[aria-label="Move highlight to Trash"]'); if (!b) return false; b.click(); return true; });
   await sleep(1200);
   ok("one-click delete button exists on cards", delClicked);
   const body2 = await dash.evaluate(() => document.body.innerText);

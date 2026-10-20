@@ -46,7 +46,11 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    chrome.runtime.sendMessage({ type: "SAVE_SETTINGS", apiToken: token, dashboardUrl: url }, () => {
+    chrome.runtime.sendMessage({ type: "SAVE_SETTINGS", apiToken: token, dashboardUrl: url }, (response) => {
+      if (chrome.runtime.lastError || !response || !response.success) {
+        showStatus((response && response.error) || "Could not save settings.", "error");
+        return;
+      }
       showStatus("Settings saved!", "success");
       setTimeout(() => { show("main"); loadRecent(); }, 1200);
     });

@@ -14,9 +14,6 @@
   if (window.__hcLoaded) return;
   window.__hcLoaded = true;
 
-  // Mark the page so the web app can detect us
-  document.documentElement.setAttribute("data-hc-extension", "true");
-  document.dispatchEvent(new CustomEvent("HC_EXTENSION_PRESENT"));
 
   // ─── Tooltip (Shadow DOM, position:fixed, CSP-safe) ──────────────────────────
 
@@ -332,7 +329,7 @@
         try { window.getSelection().removeAllRanges(); } catch (_) {}
       } else {
         const err = (response && response.error) || "Unknown error";
-        showTooltip("Error: " + err.slice(0, 60), "error", tipX, tipY);
+        showTooltip(err.slice(0, 140), "error", tipX, tipY);
       }
     } catch (err) {
       // Extension context invalidated or background not responding
@@ -379,7 +376,7 @@
     const isMac = navigator.platform ? /mac/i.test(navigator.platform) : false;
     const mainMod = isMac ? e.metaKey : e.ctrlKey;
 
-    if (mainMod && e.shiftKey && e.key.toLowerCase() === "s") {
+    if (mainMod && e.shiftKey && (e.code === "KeyS" || (e.key || "").toLowerCase() === "s")) {
       e.preventDefault();
       e.stopImmediatePropagation();
       saveHighlight();
@@ -396,10 +393,13 @@
     "https://www.themindpalace.org",
     "https://mindpalace-bice.vercel.app",
     "https://mindpalace-amanupadhyay.vercel.app",
+    "https://mindpalace-amanrupadhyay-2976-amanupadhyay.vercel.app",
   ];
+  // Store installs have an update_url; only developer (unpacked) installs trust localhost.
+  const IS_UNPACKED = !("update_url" in chrome.runtime.getManifest());
   function isTrustedOrigin(origin) {
     return TRUSTED_DASHBOARD_ORIGINS.includes(origin) ||
-      /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+      (IS_UNPACKED && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin));
   }
   function trustedDashboardUrl(url) {
     try {
@@ -426,9 +426,15 @@
   document.addEventListener("HC_SAVE_SETTINGS", (e) => {
     if (!isTrustedOrigin(window.location.origin)) return;
     const detail = (e && e.detail) || {};
+    const msg = { type: "SAVE_SETTINGS" };
+    if (typeof detail.apiToken === "string") msg.apiToken = detail.apiToken;
+    if (typeof detail.dashboardUrl === "string" && trustedDashboardUrl(detail.dashboardUrl)) {
+      msg.dashboardUrl = trustedDashboardUrl(detail.dashboardUrl);
+    }
+    if (!("apiToken" in msg) && !("dashboardUrl" in msg)) return;
     try {
       chrome.runtime.sendMessage(
-        { type: "SAVE_SETTINGS", apiToken: detail.apiToken || "", dashboardUrl: trustedDashboardUrl(detail.dashboardUrl || "") },
+        msg,
         (response) => {
           if (chrome.runtime.lastError) return;
           document.dispatchEvent(new CustomEvent("HC_SETTINGS_SAVED", {
@@ -438,5 +444,11 @@
       );
     } catch (_) {}
   });
+
+  // Let the Mind Palace dashboard (and only it) know the extension is installed.
+  if (isTrustedOrigin(window.location.origin)) {
+    document.documentElement.setAttribute("data-hc-extension", "true");
+    document.dispatchEvent(new CustomEvent("HC_EXTENSION_PRESENT"));
+  }
 
 })();

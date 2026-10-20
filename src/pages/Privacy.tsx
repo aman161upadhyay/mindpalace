@@ -39,7 +39,7 @@ export default function Privacy() {
           className="text-xs text-muted-foreground mb-12"
           style={{ fontFamily: '"JetBrains Mono", monospace' }}
         >
-          Last updated: April 27, 2026
+          Last updated: October 19, 2026
         </p>
 
         <div className="space-y-10 text-sm text-foreground/80 leading-relaxed">
@@ -116,7 +116,7 @@ export default function Privacy() {
             </h2>
             <p>
               Only you. We do not sell or monetise your highlights or personal information, and we do not read them. We do not send your highlights to any AI service. If you turn on the daily email, highlights are emailed to you through{" "}
-              <span className="text-foreground font-medium">Resend</span>. We may also disclose data if required by law, in which case we would notify you if legally permitted to do so.
+              <span className="text-foreground font-medium">Resend</span>. If you connect Notion in Settings, the highlights you sync are sent to your own Notion workspace using the token you provide. We may also disclose data if required by law, in which case we would notify you if legally permitted to do so.
             </p>
           </section>
 
@@ -130,7 +130,7 @@ export default function Privacy() {
               The Chrome extension
             </h2>
             <p>
-              The Mind Palace browser extension runs on every page you visit so it can detect text you highlight. It does not record your browsing history, keystrokes, or any content you do not explicitly choose to save. It communicates only with your Mind Palace account server when you trigger a save action.
+              The Mind Palace browser extension runs on the pages you visit so it can show the Save button for text you select. It only reads the text you choose to save, plus that page's title and address. It does not record your browsing history, keystrokes, or anything you do not explicitly save. It talks only to the Mind Palace server: when you save a highlight, and when you open its popup to show your recent highlights. Your extension access token is kept in Chrome's extension storage (synced by Chrome to your other signed-in devices) and is removed when you sign out of the dashboard. The use of information received from this extension adheres to the Chrome Web Store User Data Policy, including the Limited Use requirements.
             </p>
           </section>
 
@@ -144,7 +144,9 @@ export default function Privacy() {
               Deleting your data
             </h2>
             <p>
-              You can delete individual highlights at any time from the dashboard. To delete your account and all associated data, email us at the address below and we will remove it within 7 days.
+              You can delete individual highlights at any time from the dashboard (they go to Trash, where you can delete them forever). To delete your account and all associated data, email{" "}
+              <a href="mailto:aupadhyay@mba2027.hbs.edu" className="text-primary underline underline-offset-2">aupadhyay@mba2027.hbs.edu</a>{" "}
+              and we will remove it within 7 days.
             </p>
           </section>
 
