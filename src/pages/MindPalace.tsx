@@ -503,6 +503,24 @@ function HighlightDetailModal({
   );
 }
 
+// ─── Sorting & date grouping ─────────────────────────────────────────────────
+
+type SortMode = "newest" | "oldest" | "source";
+type DateRange = "all" | "today" | "7d" | "30d";
+
+function dateBucket(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Earlier";
+  const now = new Date();
+  const dayStart = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((dayStart(now) - dayStart(d)) / 86_400_000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return "Earlier this week";
+  if (days < 30) return "Earlier this month";
+  return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
 // ─── Export Modal (AI brain pack, JSON, Markdown, Obsidian, Notion CSV) ──────
 
 type ExportFormat = "ai-pack" | "json" | "markdown" | "obsidian" | "notion-csv";
@@ -972,6 +990,28 @@ export default function MindPalace() {
   const [showImport, setShowImport] = useState(false);
   const [showNewTag, setShowNewTag] = useState(false);
   const [offset, setOffset] = useState(0);
+  const [sortMode, setSortMode] = useState<SortMode>(() => {
+    try {
+      const saved = localStorage.getItem("mp-sort");
+      return saved === "oldest" || saved === "source" ? saved : "newest";
+    } catch { return "newest"; }
+  });
+  const [dateRange, setDateRange] = useState<DateRange>("all");
+  const changeSort = (mode: SortMode) => {
+    setSortMode(mode);
+    setOffset(0);
+    try { localStorage.setItem("mp-sort", mode); } catch { /* storage unavailable */ }
+  };
+  const changeDateRange = (range: DateRange) => { setDateRange(range); setOffset(0); };
+  // Start of the selected period in the viewer's own time zone ("Today" means their today).
+  const sinceIso = useMemo(() => {
+    if (dateRange === "all") return "";
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (dateRange === "7d") start.setDate(start.getDate() - 6);
+    if (dateRange === "30d") start.setDate(start.getDate() - 29);
+    return start.toISOString();
+  }, [dateRange]);
   const [confirmDeleteTag, setConfirmDeleteTag] = useState<{ id: number; name: string } | null>(null);
   const [showTrash, setShowTrash] = useState(false);
   const [trashItems, setTrashItems] = useState<any[]>([]);
@@ -1003,6 +1043,8 @@ export default function MindPalace() {
       if (selectedTagIds.length) params.set("tagIds", selectedTagIds.join(","));
       if (selectedMetadataTags.length) params.set("metadataTag", selectedMetadataTags.join(","));
       if (selectedDomain) params.set("domain", selectedDomain);
+      params.set("sort", sortMode);
+      if (sinceIso) params.set("since", sinceIso);
       params.set("page", String(Math.floor(offset / LIMIT) + 1));
       const res = await fetch(`/api/highlights?${params}`, { credentials: "include" });
       if (res.ok) setHighlightsData(await res.json());
@@ -1011,7 +1053,7 @@ export default function MindPalace() {
     } finally {
       setHighlightsLoading(false);
     }
-  }, [debouncedSearch, selectedTagIds, selectedMetadataTags, selectedDomain, offset]);
+  }, [debouncedSearch, selectedTagIds, selectedMetadataTags, selectedDomain, offset, sortMode, sinceIso]);
 
   useEffect(() => { fetchHighlights(); }, [fetchHighlights]);
 
@@ -1109,26 +1151,19 @@ export default function MindPalace() {
   const highlights = highlightsData?.items ?? [];
   const total = highlightsData?.total ?? 0;
 
-  // Derive "Best Highlights" - sorting highlights with notes or tags on top
-  const sortedHighlights = useMemo(() => {
-    return [...highlights].sort((a, b) => {
-      const aScore = (a.notes ? 2 : 0) + (parseTagIds(a.tagIds).length > 0 ? 1 : 0) + (a.text.length > 300 ? 1 : 0);
-      const bScore = (b.notes ? 2 : 0) + (parseTagIds(b.tagIds).length > 0 ? 1 : 0) + (b.text.length > 300 ? 1 : 0);
-      return bScore - aScore;
-    });
-  }, [highlights]);
+  // The server already returns the order the user picked (newest / oldest / by website).
+  const sortedHighlights = highlights;
 
-  // Group highlights by domain for display
+  // Section headings: dates ("Today", "Yesterday", ...) or websites, depending on the sort.
   const grouped = useMemo(() => {
-    if (selectedDomain || debouncedSearch || selectedTagIds.length || selectedMetadataTags.length) return null; // flat list when filtering
     const map: Record<string, typeof highlights> = {};
     for (const h of sortedHighlights) {
-      const key = h.domain || "Other";
+      const key = sortMode === "source" ? h.domain || "Other" : dateBucket(h.createdAt);
       if (!map[key]) map[key] = [];
       map[key].push(h);
     }
     return map;
-  }, [highlights, selectedDomain, debouncedSearch, selectedTagIds, selectedMetadataTags]);
+  }, [sortedHighlights, sortMode]);
 
   if (loading) {
     return (
@@ -1168,7 +1203,7 @@ export default function MindPalace() {
         {/* Nav */}
         <nav className="p-3 space-y-1">
           <button
-            onClick={() => { setSelectedTagIds([]); setSelectedMetadataTags([]); setSelectedDomain(undefined); setSearch(""); setDebouncedSearch(""); }}
+            onClick={() => { setSelectedTagIds([]); setSelectedMetadataTags([]); setSelectedDomain(undefined); setSearch(""); setDebouncedSearch(""); setDateRange("all"); setOffset(0); }}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm hover:bg-sidebar-accent transition-colors text-sidebar-foreground"
           >
             <BookOpen className="w-4 h-4" />
@@ -1342,6 +1377,36 @@ export default function MindPalace() {
             </div>
           </div>
 
+          {/* Sort and date filter */}
+          <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
+            <label className="flex items-center gap-1.5 text-muted-foreground">
+              Sort
+              <select
+                value={sortMode}
+                onChange={(e) => changeSort(e.target.value as SortMode)}
+                className="h-8 rounded-lg border border-border bg-secondary/50 px-2 text-xs text-foreground focus:outline-none focus:border-primary/50"
+              >
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="source">By website</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-1.5 text-muted-foreground">
+              Saved
+              <select
+                value={dateRange}
+                onChange={(e) => changeDateRange(e.target.value as DateRange)}
+                className="h-8 rounded-lg border border-border bg-secondary/50 px-2 text-xs text-foreground focus:outline-none focus:border-primary/50"
+              >
+                <option value="all">Any time</option>
+                <option value="today">Today</option>
+                <option value="7d">Last 7 days</option>
+                <option value="30d">Last 30 days</option>
+              </select>
+            </label>
+            <span className="text-muted-foreground ml-auto">{total} {total === 1 ? "highlight" : "highlights"}</span>
+          </div>
+
           {/* Active filters */}
           {(selectedTagIds.length > 0 || selectedMetadataTags.length > 0 || selectedDomain) && (
             <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -1399,8 +1464,8 @@ export default function MindPalace() {
                   : "Your mind palace is empty"}
               </h3>
               <p className="text-sm text-muted-foreground max-w-sm">
-                {debouncedSearch || selectedTagIds.length || selectedMetadataTags.length || selectedDomain
-                  ? "Try adjusting your search or removing filters."
+                {debouncedSearch || selectedTagIds.length || selectedMetadataTags.length || selectedDomain || dateRange !== "all"
+                  ? "Try adjusting your search, the date filter, or removing filters."
                   : "Install the Chrome extension, select text on any webpage, and press Ctrl+Shift+S to start capturing knowledge."}
               </p>
             </div>
@@ -1410,7 +1475,7 @@ export default function MindPalace() {
               {Object.entries(grouped).map(([domain, items]) => (
                 <div key={domain}>
                   <div className="flex items-center gap-2 mb-4">
-                    <Globe className="w-4 h-4 text-muted-foreground" />
+                    {sortMode === "source" ? <Globe className="w-4 h-4 text-muted-foreground" /> : <Calendar className="w-4 h-4 text-muted-foreground" />}
                     <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                       {domain}
                     </h2>

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { and, desc, eq, ilike, isNotNull, isNull, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, isNotNull, isNull, like, or, sql } from "drizzle-orm";
 import { db } from "../../lib/db";
 import { highlights, tags, users } from "../../schema";
 import { getAuthUserIdFromVercelReq } from "../../lib/auth";
@@ -491,10 +491,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
+      const since = typeof req.query.since === "string" && req.query.since ? new Date(req.query.since) : null;
+      if (since && !Number.isNaN(since.getTime())) conditions.push(gte(highlights.createdAt, since));
+
+      const sort = req.query.sort === "oldest" || req.query.sort === "source" ? req.query.sort : "newest";
+      const order =
+        sort === "oldest" ? [asc(highlights.createdAt), asc(highlights.id)]
+        : sort === "source" ? [asc(highlights.domain), desc(highlights.createdAt), desc(highlights.id)]
+        : [desc(highlights.createdAt), desc(highlights.id)];
+
       const whereClause = and(...conditions);
 
       const [items, countResult] = await Promise.all([
-        db.select().from(highlights).where(whereClause).orderBy(desc(highlights.createdAt)).limit(limit).offset(offset),
+        db.select().from(highlights).where(whereClause).orderBy(...order).limit(limit).offset(offset),
         db.select({ count: sql<number>`count(*)` }).from(highlights).where(whereClause),
       ]);
 
