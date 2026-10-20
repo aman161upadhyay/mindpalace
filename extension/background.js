@@ -93,7 +93,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     saveDirectly();
     return;
   }
-  chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_SAVE" }, { frameId: 0 }, () => {
+  // The menu already knows the selected text (it works in PDFs too), so hand it to the page script.
+  chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_SAVE", selectionText: info.selectionText }, { frameId: 0 }, () => {
     if (chrome.runtime.lastError) saveDirectly();
   });
 });
@@ -108,10 +109,11 @@ chrome.commands.onCommand.addListener((command) => {
     if (!tab || !tab.id) return;
 
     chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_SAVE" }, { frameId: 0 }, () => {
-      // No content script here (PDF viewer, browser pages): point the user to the right-click menu.
-      if (chrome.runtime.lastError) {
+      // Only a page with no Mind Palace script at all (chrome:// pages, the Web Store) gets here.
+      const err = chrome.runtime.lastError;
+      if (err && /Receiving end does not exist|Could not establish connection/i.test(err.message || "")) {
         flashBadge("?", "#d97706");
-        try { chrome.action.setTitle({ title: "On PDFs, select text, right-click, then choose \"Save to Mind Palace\"." }); } catch (_) {}
+        try { chrome.action.setTitle({ title: "Mind Palace can't save from this page. Try a normal web page or PDF." }); } catch (_) {}
       }
     });
   });

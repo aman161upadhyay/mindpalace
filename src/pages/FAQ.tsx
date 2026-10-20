@@ -14,7 +14,8 @@ const FAQS: { q: string; a: string | ReactNode }[] = [
         Install the Mind Palace Chrome extension and sign in at themindpalace.org once — the extension connects to your account automatically. Then select any text on a webpage and press{" "}
         <span className="font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">Ctrl + Shift + S</span>{" "}
         (or right-click and choose <em>Save to Mind Palace</em>). The highlight is saved instantly — no copying, no pasting.
-        On PDFs opened in Chrome, select the text, right-click and choose <em>Save to Mind Palace</em>.
+        In a PDF opened in Chrome, select the text and press <span className="font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">Ctrl + C</span>, then{" "}
+        <span className="font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">Ctrl + Shift + S</span> — or right-click the selected text and choose <em>Save to Mind Palace</em>. (Chrome doesn't let extensions see text selected inside a PDF, so the shortcut saves what you just copied; the first time, Chrome asks to allow clipboard access.)
       </>
     ),
   },

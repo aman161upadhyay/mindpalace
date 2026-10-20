@@ -291,13 +291,38 @@
 
   // ─── Core: Save Highlight ─────────────────────────────────────────────────────
 
-  async function saveHighlight() {
+  // Chrome's PDF viewer keeps the selection inside the PDF renderer, so page scripts can't read it.
+  function isPdfPage() {
+    try {
+      return document.contentType === "application/pdf" ||
+        !!document.querySelector('embed[type="application/pdf"]') ||
+        /\.pdf$/i.test(window.location.pathname);
+    } catch (_) { return false; }
+  }
+
+  async function saveHighlight(providedText) {
     // CRITICAL: Capture text and position IMMEDIATELY before any async work.
     // On Gemini and other SPAs, the selection is cleared the moment focus shifts.
-    const text = getSelectedText();
+    let text = getSelectedText() || (typeof providedText === "string" ? providedText.trim() : "");
     const rect = getSelectionRect();
     const tipX = rect ? rect.right : window.innerWidth / 2;
     const tipY = rect ? rect.bottom : window.innerHeight / 2;
+    let fromClipboard = false;
+
+    if (!text && isPdfPage()) {
+      // Select text in the PDF, copy it (Ctrl+C), then press the shortcut: we save what was copied.
+      try {
+        text = ((await navigator.clipboard.readText()) || "").trim();
+        fromClipboard = !!text;
+      } catch (err) {
+        showTooltip("Allow clipboard access when Chrome asks, then try again. Or right-click → Save to Mind Palace.", "error", tipX, tipY);
+        return;
+      }
+      if (!text) {
+        showTooltip("In a PDF: select text, press Ctrl+C, then Ctrl+Shift+S. Or right-click → Save to Mind Palace.", "error", tipX, tipY);
+        return;
+      }
+    }
 
     if (!text) {
       showTooltip("Select some text first", "error", tipX, tipY);
@@ -325,7 +350,8 @@
       const response = await sendToBackground({ type: "SAVE_HIGHLIGHT", payload });
 
       if (response && response.success) {
-        showTooltip("Saved to Mind Palace ✓", "success", tipX, tipY);
+        const preview = text.length > 40 ? text.slice(0, 40) + "…" : text;
+        showTooltip(fromClipboard ? `Saved from clipboard: “${preview}” ✓` : "Saved to Mind Palace ✓", "success", tipX, tipY);
         try { window.getSelection().removeAllRanges(); } catch (_) {}
       } else {
         const err = (response && response.error) || "Unknown error";
@@ -359,9 +385,10 @@
   // ─── Message Listener (from background: keyboard shortcut relay) ──────────────
 
   try {
-    chrome.runtime.onMessage.addListener((message) => {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.type === "TRIGGER_SAVE") {
-        saveHighlight();
+        saveHighlight(message.selectionText);
+        sendResponse({ ok: true }); // lets the background tell "script is here" from "no script on this page"
       }
     });
   } catch (_) {
